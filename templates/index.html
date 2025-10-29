@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <title>ALNS + OSRM + Flask</title>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>#map{height:80vh}</style>
+</head>
+<body>
+  <h3>Araç Başlangıçları (Depolar)</h3>
+  <textarea id="depots" rows="3" cols="40">41.015,28.979
+39.933,32.859</textarea>
+  <h3>Uğraklar</h3>
+  <textarea id="stops" rows="6" cols="40">40.195,29.060
+38.423,27.142
+36.897,30.713</textarea><br>
+  <button onclick="solve()">Çöz</button>
+  <div id="map"></div>
+
+<script>
+const map = L.map('map').setView([39,35],6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+let layers=[];
+
+async function solve(){
+  layers.forEach(l=>map.removeLayer(l)); layers=[];
+  const depots = document.getElementById("depots").value.split("\n").map(x=>x.split(",").map(Number));
+  const stops  = document.getElementById("stops").value.split("\n").map(x=>x.split(",").map(Number));
+  const res = await fetch("/solve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({depots,stops})});
+  const data = await res.json();
+  data.trips.forEach((t,i)=>{
+    const geo = t.trip.trips[0].geometry;
+    const line=L.geoJSON(geo,{color:['red','blue','green'][i%3]}).addTo(map);
+    layers.push(line);
+  });
+}
+</script>
+</body>
+</html>
