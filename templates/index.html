@@ -23,18 +23,49 @@ const map = L.map('map').setView([39,35],6);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 let layers=[];
 
+function parseLines(id){
+  return document.getElementById(id)
+    .value.split('\n')
+    .map(s=>s.trim())
+    .filter(Boolean)
+    .map(s=>s.split(',').map(x=>Number(x.trim())));
+}
+
 async function solve(){
+  // temizle
   layers.forEach(l=>map.removeLayer(l)); layers=[];
-  const depots = document.getElementById("depots").value.split("\n").map(x=>x.split(",").map(Number));
-  const stops  = document.getElementById("stops").value.split("\n").map(x=>x.split(",").map(Number));
-  const res = await fetch("/solve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({depots,stops})});
-  const data = await res.json();
-  data.trips.forEach((t,i)=>{
-    const geo = t.trip.trips[0].geometry;
-    const line=L.geoJSON(geo,{color:['red','blue','green'][i%3]}).addTo(map);
-    layers.push(line);
-  });
+
+  const depots = parseLines("depots");
+  const stops  = parseLines("stops");
+
+  try {
+    const res = await fetch("/alns/solve", {   // <— DÜZELTME
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ depots, stops })
+    });
+    if(!res.ok){
+      const t = await res.text();
+      alert("Sunucu hatası: " + res.status + " " + t);
+      return;
+    }
+    const data = await res.json();
+    if(!data.trips || data.trips.length===0){
+      alert("Rota bulunamadı veya boş sonuç.");
+      return;
+    }
+    data.trips.forEach((t,i)=>{
+      const geo = t.trip.trips[0].geometry;
+      const line = L.geoJSON(geo,{color:['#e74c3c','#0d6efd','#2ecc71','#9b59b6','#ff9f43'][i%5], weight:5, opacity:0.9}).addTo(map);
+      layers.push(line);
+      if(i===0) map.fitBounds(line.getBounds(),{padding:[20,20]});
+    });
+  } catch(err){
+    console.error(err);
+    alert("İstek/JS hatası: " + err.message);
+  }
 }
 </script>
+
 </body>
 </html>
