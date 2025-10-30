@@ -45,6 +45,11 @@
   </div>
 
   <div class="panel" style="display:flex;gap:8px;align-items:center">
+    <label for="method"><b>Çözüm Metodu:</b></label>
+    <select id="method">
+      <option value="alns" selected>ALNS</option>
+      <option value="greedy">Greedy</option>
+    </select>
     <button id="btnSolve">Çöz</button>
     <button id="btnClear" style="background:#6c757d">Temizle</button>
     <span id="status" style="margin-left:8px;color:#444">Hazır.</span>
@@ -99,9 +104,10 @@ async function solve(){
     return;
   }
   try{
+    const method = document.getElementById("method").value;
     const res = await fetch("/alns/solve", {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({depots, stops})
+      body: JSON.stringify({depots, stops, method})
     });
     if(!res.ok){ const t=await res.text(); throw new Error(res.status+' '+t); }
     const data = await res.json();
@@ -120,7 +126,7 @@ async function solve(){
       layers.push(line);
       bounds = bounds ? bounds.extend(line.getBounds()) : line.getBounds();
 
-      // Waypoint sırasına göre marker’lar (0: başlangıç)
+      // Waypoint sırasına göre marker’lar
       const ordered = t.trip.waypoints
         .slice()
         .sort((a,b)=>a.waypoint_index - b.waypoint_index)
