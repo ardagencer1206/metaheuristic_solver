@@ -62,10 +62,11 @@
 const map = L.map('map').setView([39,35],6);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'© OpenStreetMap'}).addTo(map);
 
-let layers=[]; let markers=[];
+let layers=[]; let markers=[]; let trucks=[];
 function clearMap(){
   layers.forEach(l=>map.removeLayer(l)); layers=[];
   markers.forEach(m=>map.removeLayer(m)); markers=[];
+  trucks.forEach(t=>map.removeLayer(t)); trucks=[];
   document.getElementById('legend').innerHTML='';
 }
 function parseLines(id){
@@ -86,27 +87,29 @@ function numIcon(n, colorHex){
   });
 }
 const truckIcon = L.icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/743/743007.png',
-  iconSize: [32,32],
-  iconAnchor: [16,32],
-  popupAnchor: [0,-28]
+  iconUrl: "https://cdn-icons-png.flaticon.com/512/743/743922.png",
+  iconSize: [36,36], iconAnchor:[18,18]
 });
 function fmtMin(s){return `${Math.round(s/60)} dk`;}
 function fmtKm(m){return (m/1000).toFixed(1)+' km';}
 
-// Animasyonlu rota çizimi
+// Animasyonlu rota + kamyon
 function animateRoute(coords, color, onFinish){
-  let i = 0;
   const polyline = L.polyline([], {color: color, weight:5, opacity:.9}).addTo(map);
   layers.push(polyline);
 
+  const truck = L.marker([coords[0][1], coords[0][0]], {icon:truckIcon}).addTo(map);
+  trucks.push(truck);
+
+  let i = 0;
   function step(){
     if(i < coords.length){
       polyline.addLatLng([coords[i][1], coords[i][0]]);
-      i++;
-      setTimeout(step, 5); // daha hızlı animasyon
-    }else if(onFinish){
-      onFinish();
+      truck.setLatLng([coords[i][1], coords[i][0]]);
+      i+=30; // hız: her adımda 30 nokta ilerle → 30x hız
+      requestAnimationFrame(step);
+    }else{
+      if(onFinish) onFinish();
     }
   }
   step();
@@ -150,7 +153,7 @@ async function solve(){
       const trip = t.trip.trips[0];
       totalDur += trip.duration; totalDist += trip.distance;
 
-      // animasyonlu rota çizimi
+      // animasyonlu rota + kamyon
       const coords = trip.geometry.coordinates;
       animateRoute(coords, col, ()=>drawTrip(idx+1));
 
@@ -161,13 +164,9 @@ async function solve(){
         .map(w=>({lat:w.location[1], lon:w.location[0]}));
 
       ordered.forEach((p, k)=>{
-        if(k===0){
-          const mk = L.marker([p.lat, p.lon], {icon: truckIcon}).addTo(map).bindPopup(`Araç ${idx+1} Başlangıç`);
-          markers.push(mk);
-        }else{
-          const mk = L.marker([p.lat, p.lon], {icon: numIcon(k+1, col)}).addTo(map).bindPopup(`Araç ${idx+1} Uğrak #${k}`);
-          markers.push(mk);
-        }
+        const label = k===0 ? `Araç ${idx+1} Başlangıç` : `Araç ${idx+1} Uğrak #${k}`;
+        const mk = L.marker([p.lat, p.lon], {icon: numIcon(k+1, col)}).addTo(map).bindPopup(label);
+        markers.push(mk);
       });
 
       // legend
@@ -176,11 +175,12 @@ async function solve(){
       tag.innerHTML = `<span class="dot" style="background:${col}"></span> Araç ${idx+1}: ${fmtMin(trip.duration)}, ${fmtKm(trip.distance)}`;
       legend.appendChild(tag);
 
+      // fit bounds
       bounds = bounds ? bounds.extend(L.latLngBounds(ordered.map(p=>[p.lat,p.lon]))) : L.latLngBounds(ordered.map(p=>[p.lat,p.lon]));
       if(bounds) map.fitBounds(bounds, {padding:[20,20]});
     }
 
-    drawTrip(0); // ilk aracı çiz
+    drawTrip(0);
   }catch(err){
     console.error(err);
     status.textContent='Hata: '+err.message;
