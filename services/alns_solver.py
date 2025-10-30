@@ -8,7 +8,12 @@ def route_cost(matrix, start_idx, stop_idxs):
     return c
 
 def total_cost(matrix, depot_idxs, routes):
-    return sum(route_cost(matrix, depot_idxs[v], routes[v]) for v in range(len(routes)))
+    """Amaç fonksiyonu: en uzun rota süresini minimize et (makespan)."""
+    if not routes:
+        return 0
+    costs = [route_cost(matrix, depot_idxs[v], routes[v]) for v in range(len(routes))]
+    return max(costs) if costs else 0
+
 
 def nearest_init(matrix, depot_idxs, stop_idxs):
     V = len(depot_idxs)
