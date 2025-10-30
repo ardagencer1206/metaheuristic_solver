@@ -8,19 +8,15 @@ from services.local_search import two_opt, three_opt, route_cost
 
 alns_bp = Blueprint("alns", __name__, template_folder="../templates")
 
-
 # ---- UI ----
 @alns_bp.route("/", methods=["GET"])
 def index():
-    # templates/index.html'i döndürür
     return render_template("index.html")
-
 
 # ---- Sağlık kontrolü (opsiyonel) ----
 @alns_bp.route("/ping", methods=["GET"])
 def ping():
     return jsonify({"ok": True})
-
 
 # ---- Çözüm uç noktası ----
 @alns_bp.route("/solve", methods=["POST"])
@@ -30,7 +26,7 @@ def solve():
         depots = data.get("depots", [])
         stops = data.get("stops", [])
         method = str(data.get("method", "alns")).lower()
-        improve = data.get("improve")  # "2opt" | "3opt" | None
+        improve = data.get("improve")  # "", None, "2opt", "3opt"
 
         # --- basit doğrulamalar ---
         if not isinstance(depots, list) or not isinstance(stops, list):
@@ -38,7 +34,6 @@ def solve():
         if len(depots) == 0:
             return jsonify({"error": "En az bir depo/araç başlangıcı gerekir"}), 400
 
-        # Koordinatların [lat, lon] formatında sayı olduğundan emin ol
         def _ok_point(p):
             return (
                 isinstance(p, (list, tuple))
@@ -69,13 +64,11 @@ def solve():
         else:  # default ALNS
             routes, cost = alns_optimize(mat, depot_idxs, stop_idxs)
 
-        # --- post-processing: 2-opt / 3-opt ---
+        # --- post-processing: 2-opt / 3-opt (GLOBAL, makespan odaklı) ---
         if improve == "2opt":
-            for v in range(len(routes)):
-                routes[v] = two_opt(routes[v], mat, depot_idxs[v])
+            routes = two_opt(routes, mat, depot_idxs)
         elif improve == "3opt":
-            for v in range(len(routes)):
-                routes[v] = three_opt(routes[v], mat, depot_idxs[v])
+            routes = three_opt(routes, mat, depot_idxs)
 
         # Makespan (en uzun rota süresi) yeniden hesapla
         costs = [route_cost(mat, depot_idxs[v], routes[v]) for v in range(len(routes))]
@@ -101,5 +94,4 @@ def solve():
         )
 
     except Exception as e:
-        # Geliştirmede hatayı görmek için mesajı dönüyoruz; prod'da loglayıp genel mesaj verilebilir
         return jsonify({"error": "internal_error", "message": str(e)}), 500
