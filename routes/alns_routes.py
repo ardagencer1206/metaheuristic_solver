@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, render_template
 from services.osrm_service import osrm_table, osrm_trip
 from services.alns_solver import alns_optimize
 from services.greedy_solver import greedy_optimize
+from services.aco_solver import aco_optimize
 
 alns_bp = Blueprint("alns", __name__, template_folder="../templates")
 
