@@ -12,7 +12,9 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
   <style>
-    :root{ --card-radius: 1rem; }
+    :root{
+      --card-radius: 1rem;
+    }
     body{background:#f7f9fb}
     .navbar-brand{font-weight:600; letter-spacing:.2px}
     .card{border:1px solid #e6ebf1; border-radius:var(--card-radius); box-shadow:0 1px 2px rgba(10,10,10,.03)}
@@ -24,28 +26,22 @@
     .status-badge{font-size:.875rem}
     .btn-icon{display:inline-flex; align-items:center; gap:.5rem}
     .alert-placeholder{position:fixed; top:72px; right:16px; z-index:1055; width:min(420px, 92vw)}
-    /* Numbered waypoints */
+    /* Leaflet marker numbers */
     .num-ico div{
       width:28px; height:28px; border-radius:50%;
       color:#fff; display:flex; align-items:center; justify-content:center;
       border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.25);
       font-weight:600; font-size:.8rem
     }
-    /* Truck / Depot icon markers */
-    .icon-pin{
-      display:flex; align-items:center; justify-content:center;
-      width:34px; height:34px; border-radius:50%;
-      border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.25);
-      color:#fff; font-size:18px; line-height:1;
-    }
-    .icon-pin .bi{font-size:18px}
   </style>
 </head>
 <body>
   <!-- Navbar -->
   <nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top">
     <div class="container-lg">
-      <a class="navbar-brand d-flex align-items-center gap-2" href="#">Çoklu Araç Rota Planlama</a>
+      <a class="navbar-brand d-flex align-items-center gap-2" href="#">
+        Çoklu Araç Rota Planlama
+      </a>
       <span class="badge text-bg-light status-badge" id="status">Hazır</span>
     </div>
   </nav>
@@ -96,14 +92,15 @@
               </div>
 
               <div class="col">
-                <label for="improve" class="form-label mb-0">İyileştirme</label>
-                <select id="improve" class="form-select">
-                  <option value="">Yok</option>
-                  <option value="2opt">2-Opt</option>
-                  <option value="3opt">3-Opt</option>
-                </select>
-              </div>
+  <label for="improve" class="form-label mb-0">İyileştirme</label>
+  <select id="improve" class="form-select">
+    <option value="">Yok</option>
+    <option value="2opt">2-Opt</option>
+    <option value="3opt">3-Opt</option>
+  </select>
+</div>
 
+              
               <div class="ms-auto d-flex gap-2">
                 <button class="btn btn-primary btn-icon" id="btnSolve">
                   <i class="bi bi-play-fill"></i> Çöz
@@ -141,6 +138,10 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
+
+    const improve = document.getElementById("improve").value;
+body: JSON.stringify({ depots, stops, method, improve })
+
     // ---- Bootstrap helpers ----
     function showAlert(message, variant="danger", timeout=4500){
       const wrapper = document.createElement('div');
@@ -167,15 +168,11 @@
     }).addTo(map);
 
     const palette = ['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#17becf','#8c564b','#e377c2','#7f7f7f','#bcbd22'];
-
-    let layers = [];     // route layers
-    let markers = [];    // route waypoint markers
-    let vehMarkers = []; // truck markers
-    let depMarkers = []; // depot markers (from stops)
+    let layers = [], markers = [];
 
     function clearMap(){
-      [...layers, ...markers, ...vehMarkers, ...depMarkers].forEach(l => { try{ map.removeLayer(l); }catch(_){} });
-      layers = []; markers = []; vehMarkers = []; depMarkers = [];
+      layers.forEach(l => map.removeLayer(l)); layers = [];
+      markers.forEach(m => map.removeLayer(m)); markers = [];
       document.getElementById('legend').innerHTML = '';
     }
 
@@ -185,36 +182,15 @@
         .map(s => {
           const p = s.split(',').map(x => Number(x.trim()));
           if(p.length !== 2 || !isFinite(p[0]) || !isFinite(p[1])) throw new Error('Satır formatı: "enlem, boylam"');
-          return [p[0], p[1]]; // [lat, lon]
+          return [p[0], p[1]];
         });
     }
 
-    // Numbered icon for route waypoints
     function numIcon(n, colorHex){
       return L.divIcon({
         className: 'num-ico',
         html: `<div style="background:${colorHex}">${n}</div>`,
         iconSize: [28,28], iconAnchor: [14,28], popupAnchor: [0,-24]
-      });
-    }
-
-    // Truck and Depot icons
-    function truckIcon(colorHex){
-      return L.divIcon({
-        className: '',
-        html: `<div class="icon-pin" style="background:${colorHex}">
-                 <i class="bi bi-truck"></i>
-               </div>`,
-        iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-12]
-      });
-    }
-    function depotIcon(colorHex='#6b7280'){
-      return L.divIcon({
-        className: '',
-        html: `<div class="icon-pin" style="background:${colorHex}">
-                 <i class="bi bi-building"></i>
-               </div>`,
-        iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-12]
       });
     }
 
@@ -241,72 +217,16 @@
 
     btnClear.addEventListener('click', () => {
       clearMap();
-      // yeniden önizleme yerleştir
-      try {
-        renderInitialPreview();
-        statusEl.className = 'badge text-bg-light status-badge';
-        statusEl.textContent = 'Temizlendi';
-        setTimeout(()=>{ statusEl.textContent = 'Hazır'; }, 1200);
-      } catch(e) {
-        showAlert('Önizleme hatası: ' + e.message, 'danger');
-      }
+      statusEl.className = 'badge text-bg-light status-badge';
+      statusEl.textContent = 'Temizlendi';
+      setTimeout(()=>{ statusEl.textContent = 'Hazır'; }, 1200);
     });
 
     btnSolve.addEventListener('click', solve);
 
-    // ---- Initial preview markers (vehicles & depots) ----
-    function renderInitialPreview(){
-      // parse
-      const depots = parseLines('depots'); // also vehicles
-      const stops  = parseLines('stops');  // show as depots for context
-
-      let bounds = null;
-
-      // Vehicles = each depot line, show truck with index color
-      depots.forEach((p, i) => {
-        const color = palette[i % palette.length];
-        const mk = L.marker([p[0], p[1]], { icon: truckIcon(color), zIndexOffset: 300 })
-          .addTo(map)
-          .bindPopup(`(araç:${i+1})`);
-        vehMarkers.push(mk);
-        bounds = bounds ? bounds.extend([p[0], p[1]]) : L.latLngBounds([p[0], p[1]],[p[0], p[1]]);
-      });
-
-      // Depots context = every stop line, show depot building icon
-      stops.forEach((p, j) => {
-        const mk = L.marker([p[0], p[1]], { icon: depotIcon('#6b7280'), zIndexOffset: 200 })
-          .addTo(map)
-          .bindPopup(`(depo:${j+1})`);
-        depMarkers.push(mk);
-        bounds = bounds ? bounds.extend([p[0], p[1]]) : L.latLngBounds([p[0], p[1]],[p[0], p[1]]);
-      });
-
-      // Legend counts
-      const legend = document.getElementById('legend');
-      const vehTag = document.createElement('span');
-      vehTag.className = 'legend-badge';
-      vehTag.innerHTML = `<span class="legend-dot" style="background:#1f77b4"></span> Araç sayısı: ${depots.length}`;
-      const depTag = document.createElement('span');
-      depTag.className = 'legend-badge';
-      depTag.innerHTML = `<span class="legend-dot" style="background:#6b7280"></span> Depo sayısı: ${stops.length}`;
-      legend.appendChild(vehTag);
-      legend.appendChild(depTag);
-
-      if(bounds) map.fitBounds(bounds, { padding: [16,16] });
-    }
-
-    // Render preview on load
-    window.addEventListener('DOMContentLoaded', () => {
-      try { renderInitialPreview(); } catch(e){ showAlert('Önizleme hatası: ' + e.message, 'danger'); }
-    });
-
-    // ---- Solve and draw routes; keep markers visible ----
     async function solve(){
       setBusy(true);
-      // Clear only route layers and legend summary; keep preview markers to maintain context
-      layers.forEach(l => map.removeLayer(l)); layers = [];
-      markers.forEach(m => map.removeLayer(m)); markers = [];
-      document.getElementById('legend').innerHTML = '';
+      clearMap();
 
       let depots, stops;
       try{
@@ -318,21 +238,13 @@
         return;
       }
 
-      const method  = document.getElementById('method').value;
-      const improve = document.getElementById('improve').value;
-
-      // If user edited textareas, refresh preview markers to reflect new inputs
-      try{
-        vehMarkers.forEach(m => map.removeLayer(m)); vehMarkers = [];
-        depMarkers.forEach(m => map.removeLayer(m)); depMarkers = [];
-        renderInitialPreview();
-      }catch(e){ /* non-fatal */ }
+      const method = document.getElementById('method').value;
 
       try{
         const res = await fetch('/alns/solve', {
           method: 'POST',
           headers: { 'Content-Type':'application/json' },
-          body: JSON.stringify({ depots, stops, method, improve })
+          body: JSON.stringify({ depots, stops, method })
         });
         if(!res.ok){
           const t = await res.text();
@@ -353,12 +265,12 @@
           const trip = t.trip.trips[0];
           totalDur += trip.duration; totalDist += trip.distance;
 
-          // Polyline geometry
+          // Çizgi
           const line = L.geoJSON(trip.geometry, { color: col, weight: 5, opacity: .9 }).addTo(map);
           layers.push(line);
           bounds = bounds ? bounds.extend(line.getBounds()) : line.getBounds();
 
-          // Ordered waypoints to place sequence numbers
+          // Markerlar (waypoint sırasına göre; 0 = başlangıç)
           const ordered = t.trip.waypoints
             .slice()
             .sort((a,b) => a.waypoint_index - b.waypoint_index)
@@ -366,34 +278,22 @@
 
           ordered.forEach((p, k) => {
             const label = k===0 ? `Araç ${i+1} Başlangıç` : `Araç ${i+1} Uğrak #${k}`;
-            const mk = L.marker([p.lat, p.lon], { icon: numIcon(k+1, col), zIndexOffset: 250 })
+            const mk = L.marker([p.lat, p.lon], { icon: numIcon(k+1, col) })
               .addTo(map)
               .bindPopup(label);
             markers.push(mk);
           });
 
-          // Legend per vehicle
+          // Legend etiketi
           const tag = document.createElement('span');
           tag.className = 'legend-badge';
           tag.innerHTML = `<span class="legend-dot" style="background:${col}"></span> Araç ${i+1}: ${fmtMin(trip.duration)}, ${fmtKm(trip.distance)}`;
           legend.appendChild(tag);
         });
 
-        // Keep the initial preview counts at the left side
-        const depotsCount = depMarkers.length;
-        const vehiclesCount = vehMarkers.length;
-        const preVeh = document.createElement('span');
-        preVeh.className = 'legend-badge';
-        preVeh.innerHTML = `<span class="legend-dot" style="background:#1f77b4"></span> Araç sayısı: ${vehiclesCount}`;
-        const preDep = document.createElement('span');
-        preDep.className = 'legend-badge';
-        preDep.innerHTML = `<span class="legend-dot" style="background:#6b7280"></span> Depo sayısı: ${depotsCount}`;
-        legend.prepend(preDep);
-        legend.prepend(preVeh);
-
         if(bounds) map.fitBounds(bounds, { padding: [16,16] });
 
-        // Makespan
+        // Makespan bilgisi (en uzun rota)
         const perVehDur = data.trips.map(t => t.trip.trips[0].duration);
         const makespan = Math.max(...perVehDur);
         statusEl.className = 'badge text-bg-success status-badge';
