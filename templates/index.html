@@ -12,9 +12,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
   <style>
-    :root{
-      --card-radius: 1rem;
-    }
+    :root{ --card-radius: 1rem; }
     body{background:#f7f9fb}
     .navbar-brand{font-weight:600; letter-spacing:.2px}
     .card{border:1px solid #e6ebf1; border-radius:var(--card-radius); box-shadow:0 1px 2px rgba(10,10,10,.03)}
@@ -26,22 +24,23 @@
     .status-badge{font-size:.875rem}
     .btn-icon{display:inline-flex; align-items:center; gap:.5rem}
     .alert-placeholder{position:fixed; top:72px; right:16px; z-index:1055; width:min(420px, 92vw)}
-    /* Leaflet marker numbers */
-    .num-ico div{
-      width:28px; height:28px; border-radius:50%;
-      color:#fff; display:flex; align-items:center; justify-content:center;
-      border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.25);
-      font-weight:600; font-size:.8rem
+    /* Leaflet marker shells */
+    .biwrap{
+      display:flex; align-items:center; justify-content:center;
+      width:34px; height:34px; border-radius:50%;
+      color:#fff; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.25);
+      font-size:18px;
     }
+    .biwrap.depot{ background:#0ea5e9; }   /* mavi */
+    .biwrap.truck{ background:#22c55e; }   /* yeşil */
+    .biwrap.stop { background:#6366f1; }   /* mor (uğrak-depo) */
   </style>
 </head>
 <body>
   <!-- Navbar -->
   <nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top">
     <div class="container-lg">
-      <a class="navbar-brand d-flex align-items-center gap-2" href="#">
-        Çoklu Araç Rota Planlama
-      </a>
+      <a class="navbar-brand d-flex align-items-center gap-2" href="#">Çoklu Araç Rota Planlama</a>
       <span class="badge text-bg-light status-badge" id="status">Hazır</span>
     </div>
   </nav>
@@ -81,8 +80,9 @@
 39.750,39.500
 38.731,35.479
 36.812,34.642</textarea>
-            <div class="d-flex align-items-center gap-2 mt-3">
-              <div>
+
+            <div class="row g-3 mt-1">
+              <div class="col-12 col-md-4">
                 <label for="method" class="form-label mb-0">Çözüm Metodu</label>
                 <select id="method" class="form-select">
                   <option value="alns" selected>ALNS (Önerilen)</option>
@@ -90,26 +90,24 @@
                   <option value="aco">Ant Colony</option>
                 </select>
               </div>
-
-              <div class="col">
-  <label for="improve" class="form-label mb-0">İyileştirme</label>
-  <select id="improve" class="form-select">
-    <option value="">Yok</option>
-    <option value="2opt">2-Opt</option>
-    <option value="3opt">3-Opt</option>
-  </select>
-</div>
-
-              
-              <div class="ms-auto d-flex gap-2">
-                <button class="btn btn-primary btn-icon" id="btnSolve">
+              <div class="col-12 col-md-4">
+                <label for="improve" class="form-label mb-0">İyileştirme</label>
+                <select id="improve" class="form-select">
+                  <option value="">Yok</option>
+                  <option value="2opt">2-Opt</option>
+                  <option value="3opt">3-Opt</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-4 d-flex align-items-end justify-content-md-end gap-2">
+                <button class="btn btn-primary btn-icon w-100 w-md-auto" id="btnSolve">
                   <i class="bi bi-play-fill"></i> Çöz
                 </button>
-                <button class="btn btn-outline-secondary btn-icon" id="btnClear">
+                <button class="btn btn-outline-secondary btn-icon w-100 w-md-auto" id="btnClear">
                   <i class="bi bi-trash3"></i> Temizle
                 </button>
               </div>
             </div>
+
             <div class="form-text mt-2">
               Not: Rotalar eş zamanlı başlar; süre özeti en uzun rota süresine (makespan) göre gösterilir.
             </div>
@@ -138,10 +136,6 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
-
-    const improve = document.getElementById("improve").value;
-body: JSON.stringify({ depots, stops, method, improve })
-
     // ---- Bootstrap helpers ----
     function showAlert(message, variant="danger", timeout=4500){
       const wrapper = document.createElement('div');
@@ -186,13 +180,19 @@ body: JSON.stringify({ depots, stops, method, improve })
         });
     }
 
-    function numIcon(n, colorHex){
-      return L.divIcon({
-        className: 'num-ico',
-        html: `<div style="background:${colorHex}">${n}</div>`,
-        iconSize: [28,28], iconAnchor: [14,28], popupAnchor: [0,-24]
-      });
-    }
+    // Icon builders
+    function depotIcon(){ return L.divIcon({
+      className:'', iconSize:[34,34], iconAnchor:[17,34], popupAnchor:[0,-24],
+      html:`<div class="biwrap depot"><i class="bi bi-building"></i></div>`
+    });}
+    function truckIcon(){ return L.divIcon({
+      className:'', iconSize:[34,34], iconAnchor:[17,34], popupAnchor:[0,-24],
+      html:`<div class="biwrap truck"><i class="bi bi-truck"></i></div>`
+    });}
+    function stopIcon(){ return L.divIcon({
+      className:'', iconSize:[34,34], iconAnchor:[17,34], popupAnchor:[0,-24],
+      html:`<div class="biwrap stop"><i class="bi bi-geo-alt"></i></div>`
+    });}
 
     function fmtMin(s){ return `${Math.round(s/60)} dk`; }
     function fmtKm(m){ return (m/1000).toFixed(1)+' km'; }
@@ -224,6 +224,68 @@ body: JSON.stringify({ depots, stops, method, improve })
 
     btnSolve.addEventListener('click', solve);
 
+    // --- Initial plotting on load ---
+    document.addEventListener('DOMContentLoaded', () => {
+      try {
+        plotInitial();
+      } catch(e){
+        showAlert('Başlangıç marker çizimi hata: ' + e.message, 'danger');
+      }
+    });
+
+    function plotInitial(){
+      clearMap();
+      const depots = parseLines('depots');      // araç başlangıçları
+      const stops  = parseLines('stops');       // "Her uğrak bir depodur" -> depo gibi göster
+
+      const legend = document.getElementById('legend');
+      // Legend base
+      const tags = [
+        {label:'Depo', color:'#0ea5e9'},
+        {label:'Araç', color:'#22c55e'},
+        {label:'Uğrak=Depo', color:'#6366f1'}
+      ];
+      tags.forEach(t=>{
+        const el = document.createElement('span');
+        el.className='legend-badge';
+        el.innerHTML = `<span class="legend-dot" style="background:${t.color}"></span> ${t.label}`;
+        legend.appendChild(el);
+      });
+
+      let bounds = null;
+
+      // Depolar ve aynı noktadan çıkan araçlar
+      depots.forEach((p, i) => {
+        const [lat, lon] = p;
+        // depo
+        const mDep = L.marker([lat, lon], { icon: depotIcon() })
+          .addTo(map)
+          .bindPopup(`(depo: ${i+1})`);
+        markers.push(mDep);
+        bounds = bounds ? bounds.extend(mDep.getLatLng()) : L.latLngBounds(mDep.getLatLng(), mDep.getLatLng());
+
+        // araç: aynı noktada küçük offset ile çakışmayı azalt
+        const off = 0.0009; // ~100 m
+        const mVeh = L.marker([lat+off, lon+off], { icon: truckIcon() })
+          .addTo(map)
+          .bindPopup(`(araç: ${i+1})`);
+        markers.push(mVeh);
+        bounds = bounds.extend(mVeh.getLatLng());
+      });
+
+      // Uğrakları da depo gibi göster
+      stops.forEach((p, j) => {
+        const [lat, lon] = p;
+        const mStop = L.marker([lat, lon], { icon: stopIcon() })
+          .addTo(map)
+          .bindPopup(`(depo: ${j+1 + depots.length})`);
+        markers.push(mStop);
+        bounds = bounds.extend(mStop.getLatLng());
+      });
+
+      if(bounds) map.fitBounds(bounds, { padding:[16,16] });
+    }
+
     async function solve(){
       setBusy(true);
       clearMap();
@@ -239,12 +301,13 @@ body: JSON.stringify({ depots, stops, method, improve })
       }
 
       const method = document.getElementById('method').value;
+      const improve = document.getElementById('improve').value;
 
       try{
         const res = await fetch('/alns/solve', {
           method: 'POST',
           headers: { 'Content-Type':'application/json' },
-          body: JSON.stringify({ depots, stops, method })
+          body: JSON.stringify({ depots, stops, method, improve })
         });
         if(!res.ok){
           const t = await res.text();
@@ -253,6 +316,8 @@ body: JSON.stringify({ depots, stops, method, improve })
         const data = await res.json();
         if(!data.trips || data.trips.length === 0){
           showAlert('Rota bulunamadı veya sonuç boş döndü.', 'warning', 5000);
+          // Çözüm yoksa en azından başlangıç görünsün
+          plotInitial();
           setBusy(false);
           return;
         }
@@ -260,6 +325,7 @@ body: JSON.stringify({ depots, stops, method, improve })
         const legend = document.getElementById('legend');
         let bounds = null, totalDur = 0, totalDist = 0;
 
+        // Çözümleri çiz
         data.trips.forEach((t, i) => {
           const col = palette[i % palette.length];
           const trip = t.trip.trips[0];
@@ -277,10 +343,11 @@ body: JSON.stringify({ depots, stops, method, improve })
             .map(w => ({ lat: w.location[1], lon: w.location[0] }));
 
           ordered.forEach((p, k) => {
-            const label = k===0 ? `Araç ${i+1} Başlangıç` : `Araç ${i+1} Uğrak #${k}`;
-            const mk = L.marker([p.lat, p.lon], { icon: numIcon(k+1, col) })
-              .addTo(map)
-              .bindPopup(label);
+            const mk = L.marker([p.lat, p.lon], { icon: L.divIcon({
+              className:'', iconSize:[28,28], iconAnchor:[14,28], popupAnchor:[0,-24],
+              html:`<div class="biwrap" style="background:${col}; width:28px; height:28px; font-size:14px">${k+1}</div>`
+            })}).addTo(map)
+              .bindPopup(`Araç ${i+1} ${k===0 ? 'Başlangıç' : `Uğrak #${k}`}`);
             markers.push(mk);
           });
 
@@ -293,7 +360,7 @@ body: JSON.stringify({ depots, stops, method, improve })
 
         if(bounds) map.fitBounds(bounds, { padding: [16,16] });
 
-        // Makespan bilgisi (en uzun rota)
+        // Makespan bilgisi
         const perVehDur = data.trips.map(t => t.trip.trips[0].duration);
         const makespan = Math.max(...perVehDur);
         statusEl.className = 'badge text-bg-success status-badge';
@@ -302,6 +369,8 @@ body: JSON.stringify({ depots, stops, method, improve })
       }catch(err){
         console.error(err);
         showAlert('Sunucu hatası: ' + err.message, 'danger', 7000);
+        // Hata durumunda da başlangıç görünür olsun
+        try { plotInitial(); } catch(_) {}
       }finally{
         setBusy(false);
       }
