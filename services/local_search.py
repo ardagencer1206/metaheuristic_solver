@@ -16,11 +16,18 @@ def _route_costs(matrix, depot_idxs, routes):
 def _makespan(costs):
     return max(costs) if costs else 0.0
 
+def _accept_if_safe(old_costs, new_costs):
+    """Hamleyi sadece yeni makespan eski makespan'den küçükse kabul et."""
+    old_mk = _makespan(old_costs)
+    new_mk = _makespan(new_costs)
+    return new_mk < old_mk
+
 # -------- 2-OPT (global makespan odaklı) --------
 def two_opt(routes, matrix, depot_idxs, max_iter=200):
     """
-    En uzun rota üzerinde 2-opt best-improvement uygular.
-    Hamle, makespan'i düşürüyorsa kabul edilir. İyileşme yoksa durur.
+    En uzun rota üzerinde 2-opt uygular.
+    Hamle, makespan'i küçültüyorsa kabul edilir. 
+    İyileşme yoksa durur.
     """
     cur = deepcopy(routes)
     it = 0
@@ -35,42 +42,38 @@ def two_opt(routes, matrix, depot_idxs, max_iter=200):
 
         r = cur[v_long]
         if len(r) < 3:
-            # 2-opt yapacak uzunluk yok
-            break
+            break  # 2-opt için yeterli düğüm yok
 
         best_route = r
         best_mk = base_mk
         improved = False
 
-        # 2-opt: iki kesme noktası (i, j), i<j
         for i in range(1, len(r) - 1):
             for j in range(i + 1, len(r)):
                 if j - i == 1:
-                    continue  # bitişik kenarı ters çevirmek anlamsız
+                    continue
                 cand = r[:i] + r[i:j][::-1] + r[j:]
-
-                # sadece uzun rota maliyetini yeniden hesaplamak yeter
-                new_costs = costs[:]  # shallow copy
+                new_costs = costs[:]
                 new_costs[v_long] = route_cost(matrix, depot_idxs[v_long], cand)
-                mk = _makespan(new_costs)
 
-                if mk < best_mk:
-                    best_mk = mk
+                if _accept_if_safe(costs, new_costs) and _makespan(new_costs) < best_mk:
+                    best_mk = _makespan(new_costs)
                     best_route = cand
                     improved = True
 
         if improved:
             cur[v_long] = best_route
         else:
-            break  # daha fazla makespan iyileştirmesi yok
+            break
 
     return cur
 
 # -------- 3-OPT (global makespan odaklı) --------
 def three_opt(routes, matrix, depot_idxs, max_iter=100):
     """
-    En uzun rota üzerinde basit 3-opt varyantları dener.
-    Hamle, makespan'i düşürürse kabul edilir. İyileşme yoksa durur.
+    En uzun rota üzerinde basit 3-opt uygular.
+    Hamle, makespan'i küçültüyorsa kabul edilir.
+    İyileşme yoksa durur.
     """
     cur = deepcopy(routes)
     it = 0
@@ -85,22 +88,16 @@ def three_opt(routes, matrix, depot_idxs, max_iter=100):
 
         r = cur[v_long]
         if len(r) < 4:
-            break  # 3-opt için yeterince düğüm yok
+            break
 
         best_route = r
         best_mk = base_mk
         improved = False
 
-        # 3-opt: üç kesme noktası (i, j, k), i<j<k
         for i in range(0, len(r) - 2):
             for j in range(i + 1, len(r) - 1):
                 for k in range(j + 1, len(r)):
-                    A = r[:i]
-                    B = r[i:j]
-                    C = r[j:k]
-                    D = r[k:]
-
-                    # Birkaç yaygın 3-opt yeniden bağlama adayı
+                    A, B, C, D = r[:i], r[i:j], r[j:k], r[k:]
                     candidates = [
                         A + B[::-1] + C + D,
                         A + B + C[::-1] + D,
@@ -108,13 +105,12 @@ def three_opt(routes, matrix, depot_idxs, max_iter=100):
                         A + C[::-1] + B + D,
                         A + B[::-1] + C[::-1] + D,
                     ]
-
                     for cand in candidates:
                         new_costs = costs[:]
                         new_costs[v_long] = route_cost(matrix, depot_idxs[v_long], cand)
-                        mk = _makespan(new_costs)
-                        if mk < best_mk:
-                            best_mk = mk
+
+                        if _accept_if_safe(costs, new_costs) and _makespan(new_costs) < best_mk:
+                            best_mk = _makespan(new_costs)
                             best_route = cand
                             improved = True
 
