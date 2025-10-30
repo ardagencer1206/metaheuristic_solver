@@ -24,6 +24,8 @@ def solve():
 
     if method == "greedy":
         routes, cost = greedy_optimize(mat, depot_idxs, stop_idxs)
+    elif method == "aco":
+        routes, cost = aco_optimize(mat, depot_idxs, stop_idxs)
     else:
         routes, cost = alns_optimize(mat, depot_idxs, stop_idxs)
 
