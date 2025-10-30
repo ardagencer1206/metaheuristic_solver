@@ -12,27 +12,19 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
   <style>
-    :root{ --card-radius:1rem; }
+    :root{ --card-radius: 1rem; }
     body{background:#f7f9fb}
     .navbar-brand{font-weight:600; letter-spacing:.2px}
     .card{border:1px solid #e6ebf1; border-radius:var(--card-radius); box-shadow:0 1px 2px rgba(10,10,10,.03)}
     .card-header{background:#fff; font-weight:600; border-top-left-radius:var(--card-radius); border-top-right-radius:var(--card-radius)}
     .form-text{color:#6b7280}
-    #map{height:clamp(360px,62vh,76vh); border-radius:.75rem}
+    #map{height: clamp(360px, 62vh, 76vh); border-radius:.75rem}
     .legend-badge{display:inline-flex; align-items:center; gap:.5rem; background:#f3f4f6; border-radius:999px; padding:.3rem .7rem; font-size:.875rem}
     .legend-dot{width:10px; height:10px; border-radius:50%}
     .status-badge{font-size:.875rem}
     .btn-icon{display:inline-flex; align-items:center; gap:.5rem}
-    .alert-placeholder{position:fixed; top:72px; right:16px; z-index:1055; width:min(420px,92vw)}
-    /* DivIcon stilleri */
-    .ico {
-      display:flex; align-items:center; justify-content:center;
-      width:34px; height:34px; border-radius:50%; color:#fff;
-      border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.25);
-      font-size:16px;
-    }
-    .ico-depot{ background:#6c757d }  /* gri */
-    .ico-truck{ background:#0d6efd }  /* mavi */
+    .alert-placeholder{position:fixed; top:72px; right:16px; z-index:1055; width:min(420px, 92vw)}
+    /* Leaflet numbered markers for route waypoints */
     .num-ico div{
       width:28px; height:28px; border-radius:50%;
       color:#fff; display:flex; align-items:center; justify-content:center;
@@ -86,24 +78,24 @@
 38.731,35.479
 36.812,34.642</textarea>
 
-            <div class="row mt-3 g-3">
-              <div class="col-sm-6 col-md-4">
-                <label for="method" class="form-label mb-1">Çözüm Metodu</label>
+            <div class="row g-2 align-items-end mt-2">
+              <div class="col-12 col-md-4">
+                <label for="method" class="form-label mb-0">Çözüm Metodu</label>
                 <select id="method" class="form-select">
                   <option value="alns" selected>ALNS (Önerilen)</option>
                   <option value="greedy">Greedy</option>
                   <option value="aco">Ant Colony</option>
                 </select>
               </div>
-              <div class="col-sm-6 col-md-4">
-                <label for="improve" class="form-label mb-1">İyileştirme</label>
+              <div class="col-12 col-md-4">
+                <label for="improve" class="form-label mb-0">İyileştirme</label>
                 <select id="improve" class="form-select">
                   <option value="">Yok</option>
                   <option value="2opt">2-Opt</option>
                   <option value="3opt">3-Opt</option>
                 </select>
               </div>
-              <div class="col-md-4 d-flex align-items-end justify-content-md-end gap-2">
+              <div class="col-12 col-md-4 d-flex gap-2 justify-content-md-end mt-2 mt-md-0">
                 <button class="btn btn-primary btn-icon" id="btnSolve">
                   <i class="bi bi-play-fill"></i> Çöz
                 </button>
@@ -141,7 +133,7 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
-    // ---- Alert helper ----
+    // ---- Bootstrap helpers ----
     function showAlert(message, variant="danger", timeout=4500){
       const wrapper = document.createElement('div');
       wrapper.innerHTML = `
@@ -166,14 +158,14 @@
       attribution: '&copy; OpenStreetMap'
     }).addTo(map);
 
+    // renk paleti (araç rotaları için)
     const palette = ['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#17becf','#8c564b','#e377c2','#7f7f7f','#bcbd22'];
 
-    let layers = [];         // rota çizgileri
-    let routeMarkers = [];   // waypoint numara markerları
-    let previewMarkers = []; // depo & araç ön izlemesi
+    // katman/marker koleksiyonları
+    let routeLayers = [], routeMarkers = [], baseMarkers = [];
 
     function clearRoutes(){
-      layers.forEach(l => map.removeLayer(l)); layers = [];
+      routeLayers.forEach(l => map.removeLayer(l)); routeLayers = [];
       routeMarkers.forEach(m => map.removeLayer(m)); routeMarkers = [];
       document.getElementById('legend').innerHTML = '';
     }
@@ -188,21 +180,29 @@
         });
     }
 
-    // ---- Özel ikonlar (Bootstrap Icons ile) ----
-    function depotIcon(){
-      return L.divIcon({
-        className:'ico-depot',
-        html:`<div class="ico ico-depot"><i class="bi bi-building"></i></div>`,
-        iconSize:[34,34], iconAnchor:[17,17], popupAnchor:[0,-12]
+    // ----- SVG ikonları (kamyon ve depo) -----
+    function svgIcon(svg, size=[30,30], anchor=[15,30]){
+      return L.icon({
+        iconUrl: 'data:image/svg+xml;utf8,' + encodeURIComponent(svg),
+        iconSize: size, iconAnchor: anchor, popupAnchor: [0,-28]
       });
     }
-    function truckIcon(){
-      return L.divIcon({
-        className:'ico-truck',
-        html:`<div class="ico ico-truck"><i class="bi bi-truck"></i></div>`,
-        iconSize:[34,34], iconAnchor:[17,17], popupAnchor:[0,-12]
-      });
-    }
+
+    const truckSVG = (color='#0d6efd') => `
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 -4 28 28">
+        <rect x="1" y="6" width="14" height="8" rx="2" fill="${color}"/>
+        <path d="M15 8h5l3 3v3h-8z" fill="${color}"/>
+        <circle cx="7" cy="16" r="3" fill="#222"/><circle cx="7" cy="16" r="1.5" fill="#fff"/>
+        <circle cx="19" cy="16" r="3" fill="#222"/><circle cx="19" cy="16" r="1.5" fill="#fff"/>
+      </svg>`;
+
+    const depotSVG = (color='#6c757d') => `
+      <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 -2 24 24">
+        <path d="M2 10l10-6 10 6v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" fill="${color}" opacity=".9"/>
+        <rect x="6" y="12" width="4" height="6" fill="#fff"/><rect x="14" y="12" width="4" height="6" fill="#fff"/>
+      </svg>`;
+
+    // numaralı waypoint ikonu (rota çizimi için)
     function numIcon(n, colorHex){
       return L.divIcon({
         className: 'num-ico',
@@ -232,70 +232,9 @@
       }
     }
 
-    // ---- Depo & Araç ön izleme ----
-    function clearPreview(){
-      previewMarkers.forEach(m => map.removeLayer(m));
-      previewMarkers = [];
-    }
-
-    // depo ve araç aynı koordinasyonda ise aracı azıcık kaydır (overlap engelleme)
-    function offsetLatLng(lat, lon, metersNorth=15, metersEast=15){
-      const dLat = metersNorth / 111111; // ~111km per deg
-      const dLon = metersEast / (111111 * Math.cos(lat * Math.PI / 180));
-      return [lat + dLat, lon + dLon];
-    }
-
-    function renderPreview(){
-      clearPreview();
-      let depots;
-      try{
-        depots = parseLines('depots');
-      }catch{
-        return; // geçersizse çizmeyelim
-      }
-      const colorFor = (i)=> palette[i % palette.length];
-
-      let bounds = null;
-
-      depots.forEach((p, i)=>{
-        const lat = p[0], lon = p[1];
-        // Depo ikonu
-        const md = L.marker([lat, lon], { icon: depotIcon(), zIndexOffset: 500 })
-          .addTo(map)
-          .bindPopup(`(depo: ${i+1})`);
-        previewMarkers.push(md);
-
-        // Araç ikonu (az ofset)
-        const [lat2, lon2] = offsetLatLng(lat, lon, 25, 25);
-        const mv = L.marker([lat2, lon2], { icon: truckIcon(), zIndexOffset: 700 })
-          .addTo(map)
-          .bindPopup(`(araç: ${i+1})`);
-        previewMarkers.push(mv);
-
-        const latlngs = [ [lat,lon], [lat2,lon2] ];
-        const groupBounds = L.latLngBounds(latlngs);
-        bounds = bounds ? bounds.extend(groupBounds) : groupBounds;
-      });
-
-      if(bounds){
-        map.fitBounds(bounds, { padding:[16,16] });
-      }
-    }
-
-    // İlk açılışta ve depolar değişince ön izleme çiz
-    document.addEventListener('DOMContentLoaded', renderPreview);
-    document.getElementById('depots').addEventListener('input', debounce(()=> {
-      renderPreview();
-    }, 300));
-
-    // Basit debounce
-    function debounce(fn, ms){
-      let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn.apply(this,args), ms); }
-    }
-
+    // ---- Temizle (sadece rota çizimlerini kaldırır; temel depo/araç markerları kalır) ----
     btnClear.addEventListener('click', () => {
-      clearRoutes();           // rotaları ve waypointleri temizle
-      renderPreview();         // ön izlemede depolar & araçlar kalsın/güncellensin
+      clearRoutes();
       statusEl.className = 'badge text-bg-light status-badge';
       statusEl.textContent = 'Temizlendi';
       setTimeout(()=>{ statusEl.textContent = 'Hazır'; }, 1200);
@@ -303,9 +242,52 @@
 
     btnSolve.addEventListener('click', solve);
 
+    // ---- Başlangıçta depolar (araçlar) ve uğraklar için marker bas ----
+    function drawBaseMarkers(){
+      // önce var olan temel markerları sil
+      baseMarkers.forEach(m => map.removeLayer(m));
+      baseMarkers = [];
+
+      let depots, stops;
+      try{
+        depots = parseLines('depots');
+        stops  = parseLines('stops');
+      }catch(e){
+        // metin hatası varsa marker basma — sessiz geç
+        return;
+      }
+
+      // Araç/Depo (kamyon ikonu) — depots listesi
+      depots.forEach((p, i) => {
+        const icon = svgIcon(truckSVG(palette[i % palette.length]));
+        const mk = L.marker([p[0], p[1]], { icon }).addTo(map)
+          .bindPopup(`(araç:${i+1})`);
+        baseMarkers.push(mk);
+      });
+
+      // Uğraklar (depo ikonu) — stops listesi
+      stops.forEach((p, j) => {
+        const icon = svgIcon(depotSVG());
+        const mk = L.marker([p[0], p[1]], { icon }).addTo(map)
+          .bindPopup(`(depo:${j+1})`);
+        baseMarkers.push(mk);
+      });
+
+      // Görüşü makul şekilde ayarla
+      const group = L.featureGroup(baseMarkers);
+      if(baseMarkers.length) map.fitBounds(group.getBounds(), { padding:[16,16] });
+    }
+
+    // metinler değiştikçe temel markerları güncelle (debounce basitçe blur/change)
+    document.getElementById('depots').addEventListener('change', drawBaseMarkers);
+    document.getElementById('stops').addEventListener('change', drawBaseMarkers);
+    document.getElementById('depots').addEventListener('blur', drawBaseMarkers);
+    document.getElementById('stops').addEventListener('blur', drawBaseMarkers);
+
+    // ---- Çöz & çiz ----
     async function solve(){
       setBusy(true);
-      clearRoutes(); // sadece rota katmanlarını temizle, ön izleme dursun
+      clearRoutes();
 
       let depots, stops;
       try{
@@ -317,7 +299,7 @@
         return;
       }
 
-      const method = document.getElementById('method').value;
+      const method  = document.getElementById('method').value;
       const improve = document.getElementById('improve').value;
 
       try{
@@ -347,7 +329,7 @@
 
           // Çizgi
           const line = L.geoJSON(trip.geometry, { color: col, weight: 5, opacity: .9 }).addTo(map);
-          layers.push(line);
+          routeLayers.push(line);
           bounds = bounds ? bounds.extend(line.getBounds()) : line.getBounds();
 
           // Markerlar (waypoint sırasına göre; 0 = başlangıç)
@@ -373,7 +355,7 @@
 
         if(bounds) map.fitBounds(bounds, { padding: [16,16] });
 
-        // Makespan bilgisi (en uzun rota)
+        // Makespan (en uzun rota)
         const perVehDur = data.trips.map(t => t.trip.trips[0].duration);
         const makespan = Math.max(...perVehDur);
         statusEl.className = 'badge text-bg-success status-badge';
@@ -386,6 +368,9 @@
         setBusy(false);
       }
     }
+
+    // Sayfa yüklenince depolar (araçlar) ve uğraklar markerları çiz
+    window.addEventListener('DOMContentLoaded', drawBaseMarkers);
   </script>
 </body>
 </html>
