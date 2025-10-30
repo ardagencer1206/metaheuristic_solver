@@ -1,37 +1,77 @@
 <!doctype html>
 <html lang="tr">
 <head>
-  <meta charset="utf-8">
-  <title>ALNS + OSRM Çoklu Araç</title>
+  <meta charset="utf-8" />
+  <title>Çoklu Araç Rota Planlama | ALNS · Greedy · ACO</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
   <style>
-    body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial}
-    header, .panel{padding:12px 16px}
-    .grid{display:grid;gap:10px;grid-template-columns:1fr 1fr}
-    textarea,input,button{padding:8px;border:1px solid #ccc;border-radius:8px}
-    button{background:#0d6efd;color:#fff;border:0;cursor:pointer}
-    #map{height:65vh;margin:12px 16px;border-radius:10px}
-    .legend{display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 12px 16px}
-    .tag{display:inline-flex;align-items:center;gap:6px;background:#f2f2f2;border-radius:999px;padding:2px 10px}
-    .dot{width:10px;height:10px;border-radius:50%}
-    @media(max-width:900px){.grid{grid-template-columns:1fr} #map{height:60vh}}
+    :root{
+      --card-radius: 1rem;
+    }
+    body{background:#f7f9fb}
+    .navbar-brand{font-weight:600; letter-spacing:.2px}
+    .card{border:1px solid #e6ebf1; border-radius:var(--card-radius); box-shadow:0 1px 2px rgba(10,10,10,.03)}
+    .card-header{background:#fff; font-weight:600; border-top-left-radius:var(--card-radius); border-top-right-radius:var(--card-radius)}
+    .form-text{color:#6b7280}
+    #map{height: clamp(360px, 62vh, 76vh); border-radius:.75rem}
+    .legend-badge{display:inline-flex; align-items:center; gap:.5rem; background:#f3f4f6; border-radius:999px; padding:.3rem .7rem; font-size:.875rem}
+    .legend-dot{width:10px; height:10px; border-radius:50%}
+    .status-badge{font-size:.875rem}
+    .btn-icon{display:inline-flex; align-items:center; gap:.5rem}
+    .alert-placeholder{position:fixed; top:72px; right:16px; z-index:1055; width:min(420px, 92vw)}
+    /* Leaflet marker numbers */
+    .num-ico div{
+      width:28px; height:28px; border-radius:50%;
+      color:#fff; display:flex; align-items:center; justify-content:center;
+      border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.25);
+      font-weight:600; font-size:.8rem
+    }
   </style>
 </head>
 <body>
-  <header><b>Çoklu Araç Rota Planlama</b> — ALNS Python, görselleştirme Leaflet</header>
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top">
+    <div class="container-lg">
+      <a class="navbar-brand d-flex align-items-center gap-2" href="#">
+        <i class="bi bi-boxes"></i> Çoklu Araç Rota Planlama
+      </a>
+      <span class="badge text-bg-light status-badge" id="status">Hazır</span>
+    </div>
+  </nav>
 
-  <div class="panel grid">
-    <div>
-      <label><b>Depolar (araç başlangıçları)</b> — her satıra <i>enlem, boylam</i></label><br>
-      <textarea id="depots" rows="5">41.015,28.979
+  <div class="alert-placeholder" id="alertPlaceholder"></div>
+
+  <main class="container-lg my-4">
+    <div class="row g-4">
+      <!-- Depolar -->
+      <div class="col-12 col-lg-6">
+        <div class="card">
+          <div class="card-header"><i class="bi bi-geo-alt me-2"></i>Depolar (Araç Başlangıçları)</div>
+          <div class="card-body">
+            <label for="depots" class="form-label">Her satıra <code>enlem, boylam</code></label>
+            <textarea id="depots" rows="7" class="form-control" placeholder="41.015,28.979&#10;39.933,32.859&#10;38.423,27.142">41.015,28.979
 39.933,32.859
 38.423,27.142</textarea>
-    </div>
-    <div>
-      <label><b>Uğraklar</b> — her satıra <i>enlem, boylam</i></label><br>
-      <textarea id="stops" rows="5">40.195,29.060
+            <div class="form-text mt-2">
+              Örn: <code>41.015,28.979</code> (İstanbul), <code>39.933,32.859</code> (Ankara)
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Uğraklar -->
+      <div class="col-12 col-lg-6">
+        <div class="card">
+          <div class="card-header"><i class="bi bi-pin-map me-2"></i>Uğraklar</div>
+          <div class="card-body">
+            <label for="stops" class="form-label">Her satıra <code>enlem, boylam</code></label>
+            <textarea id="stops" rows="7" class="form-control" placeholder="40.195,29.060&#10;37.066,37.383&#10;...">40.195,29.060
 37.066,37.383
 36.897,30.713
 41.657,26.563
@@ -41,123 +81,216 @@
 39.750,39.500
 38.731,35.479
 36.812,34.642</textarea>
+            <div class="d-flex align-items-center gap-2 mt-3">
+              <div>
+                <label for="method" class="form-label mb-0">Çözüm Metodu</label>
+                <select id="method" class="form-select">
+                  <option value="alns" selected>ALNS (Önerilen)</option>
+                  <option value="greedy">Greedy</option>
+                  <option value="aco">Ant Colony</option>
+                </select>
+              </div>
+              <div class="ms-auto d-flex gap-2">
+                <button class="btn btn-primary btn-icon" id="btnSolve">
+                  <i class="bi bi-play-fill"></i> Çöz
+                </button>
+                <button class="btn btn-outline-secondary btn-icon" id="btnClear">
+                  <i class="bi bi-trash3"></i> Temizle
+                </button>
+              </div>
+            </div>
+            <div class="form-text mt-2">
+              Not: Rotalar eş zamanlı başlar; süre özeti en uzun rota süresine (makespan) göre gösterilir.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Harita ve Sonuç Özeti -->
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header"><i class="bi bi-map me-2"></i>Harita</div>
+          <div class="card-body">
+            <div id="map" class="w-100"></div>
+          </div>
+          <div class="card-footer bg-white">
+            <div class="d-flex flex-wrap gap-2" id="legend"></div>
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
+  </main>
 
-  <div class="panel" style="display:flex;gap:8px;align-items:center">
-    <label for="method"><b>Çözüm Metodu:</b></label>
-    <select id="method">
-      <option value="alns" selected>ALNS</option>
-      <option value="greedy">Greedy</option>
-      <option value="aco">Ant Colony</option>
-    </select>
-    <button id="btnSolve">Çöz</button>
-    <button id="btnClear" style="background:#6c757d">Temizle</button>
-    <span id="status" style="margin-left:8px;color:#444">Hazır.</span>
-  </div>
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-  <div class="legend" id="legend"></div>
-  <div id="map"></div>
+  <script>
+    // ---- Bootstrap helpers ----
+    function showAlert(message, variant="danger", timeout=4500){
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = `
+        <div class="alert alert-${variant} alert-dismissible fade show shadow-sm" role="alert">
+          ${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Kapat"></button>
+        </div>`;
+      const ph = document.getElementById('alertPlaceholder');
+      ph.appendChild(wrapper);
+      if(timeout){
+        setTimeout(()=> {
+          const alertEl = bootstrap.Alert.getOrCreateInstance(wrapper.firstElementChild);
+          alertEl.close();
+        }, timeout);
+      }
+    }
 
-<script>
-const map = L.map('map').setView([39,35],6);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'© OpenStreetMap'}).addTo(map);
+    // ---- Leaflet init ----
+    const map = L.map('map').setView([39,35], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
 
-let layers=[]; let markers=[];
-function clearMap(){
-  layers.forEach(l=>map.removeLayer(l)); layers=[];
-  markers.forEach(m=>map.removeLayer(m)); markers=[];
-  document.getElementById('legend').innerHTML='';
-}
-function parseLines(id){
-  return document.getElementById(id).value
-    .split('\n').map(s=>s.trim()).filter(Boolean)
-    .map(s=>{
-      const p=s.split(',').map(x=>Number(x.trim()));
-      if(p.length!==2 || !isFinite(p[0]) || !isFinite(p[1])) throw new Error('Format: "enlem, boylam"');
-      return [p[0], p[1]];
-    });
-}
-const palette=['#e74c3c','#0d6efd','#2ecc71','#9b59b6','#ff9f43','#1abc9c','#8e44ad','#34495e','#d35400','#27ae60'];
-function numIcon(n, colorHex){
-  return L.divIcon({
-    className:'num-ico',
-    html:`<div style="width:28px;height:28px;border-radius:50%;background:${colorHex};color:#fff;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)">${n}</div>`,
-    iconSize:[28,28], iconAnchor:[14,28], popupAnchor:[0,-24]
-  });
-}
-function fmtMin(s){return `${Math.round(s/60)} dk`;}
-function fmtKm(m){return (m/1000).toFixed(1)+' km';}
+    const palette = ['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#17becf','#8c564b','#e377c2','#7f7f7f','#bcbd22'];
+    let layers = [], markers = [];
 
-async function solve(){
-  const status = document.getElementById('status');
-  status.textContent='Hesaplanıyor...'; 
-  document.getElementById('btnSolve').disabled=true;
+    function clearMap(){
+      layers.forEach(l => map.removeLayer(l)); layers = [];
+      markers.forEach(m => map.removeLayer(m)); markers = [];
+      document.getElementById('legend').innerHTML = '';
+    }
 
-  clearMap();
-  let depots, stops;
-  try{
-    depots = parseLines('depots');
-    stops  = parseLines('stops');
-  }catch(e){
-    status.textContent='Hata: ' + e.message;
-    document.getElementById('btnSolve').disabled=false;
-    return;
-  }
-  try{
-    const method = document.getElementById("method").value;
-    const res = await fetch("/alns/solve", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({depots, stops, method})
-    });
-    if(!res.ok){ const t=await res.text(); throw new Error(res.status+' '+t); }
-    const data = await res.json();
-    if(!data.trips || data.trips.length===0){ status.textContent='Rota yok.'; return; }
+    function parseLines(id){
+      return document.getElementById(id).value
+        .split('\n').map(s => s.trim()).filter(Boolean)
+        .map(s => {
+          const p = s.split(',').map(x => Number(x.trim()));
+          if(p.length !== 2 || !isFinite(p[0]) || !isFinite(p[1])) throw new Error('Satır formatı: "enlem, boylam"');
+          return [p[0], p[1]];
+        });
+    }
 
-    const legend = document.getElementById('legend');
-    let bounds=null, totalDur=0, totalDist=0;
-
-    data.trips.forEach((t, i)=>{
-      const col = palette[i % palette.length];
-      const trip = t.trip.trips[0];
-      totalDur += trip.duration; totalDist += trip.distance;
-
-      // Rota çiz
-      const line = L.geoJSON(trip.geometry, {color: col, weight:5, opacity:.9}).addTo(map);
-      layers.push(line);
-      bounds = bounds ? bounds.extend(line.getBounds()) : line.getBounds();
-
-      // Waypoint sırasına göre marker’lar
-      const ordered = t.trip.waypoints
-        .slice()
-        .sort((a,b)=>a.waypoint_index - b.waypoint_index)
-        .map(w=>({lat:w.location[1], lon:w.location[0]}));
-
-      ordered.forEach((p, k)=>{
-        const label = k===0 ? `Araç ${i+1} Başlangıç` : `Araç ${i+1} Uğrak #${k}`;
-        const mk = L.marker([p.lat, p.lon], {icon: numIcon(k+1, col)}).addTo(map).bindPopup(label);
-        markers.push(mk);
+    function numIcon(n, colorHex){
+      return L.divIcon({
+        className: 'num-ico',
+        html: `<div style="background:${colorHex}">${n}</div>`,
+        iconSize: [28,28], iconAnchor: [14,28], popupAnchor: [0,-24]
       });
+    }
 
-      // Legend
-      const tag = document.createElement('div');
-      tag.className='tag';
-      tag.innerHTML = `<span class="dot" style="background:${col}"></span> Araç ${i+1}: ${fmtMin(trip.duration)}, ${fmtKm(trip.distance)}`;
-      legend.appendChild(tag);
+    function fmtMin(s){ return `${Math.round(s/60)} dk`; }
+    function fmtKm(m){ return (m/1000).toFixed(1)+' km'; }
+
+    const statusEl = document.getElementById('status');
+    const btnSolve = document.getElementById('btnSolve');
+    const btnClear = document.getElementById('btnClear');
+
+    function setBusy(busy=true){
+      if(busy){
+        btnSolve.disabled = true;
+        statusEl.className = 'badge text-bg-warning status-badge';
+        statusEl.textContent = 'Hesaplanıyor…';
+        btnSolve.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Çözülüyor`;
+      }else{
+        btnSolve.disabled = false;
+        statusEl.className = 'badge text-bg-light status-badge';
+        statusEl.textContent = 'Hazır';
+        btnSolve.innerHTML = `<i class="bi bi-play-fill"></i> Çöz`;
+      }
+    }
+
+    btnClear.addEventListener('click', () => {
+      clearMap();
+      statusEl.className = 'badge text-bg-light status-badge';
+      statusEl.textContent = 'Temizlendi';
+      setTimeout(()=>{ statusEl.textContent = 'Hazır'; }, 1200);
     });
 
-    if(bounds) map.fitBounds(bounds, {padding:[20,20]});
-    status.textContent = `Araç: ${data.trips.length} • Toplam süre: ${fmtMin(totalDur)} • Toplam mesafe: ${fmtKm(totalDist)}`;
-  }catch(err){
-    console.error(err);
-    status.textContent='Hata: '+err.message;
-  }finally{
-    document.getElementById('btnSolve').disabled=false;
-  }
-}
+    btnSolve.addEventListener('click', solve);
 
-document.getElementById('btnSolve').onclick=solve;
-document.getElementById('btnClear').onclick=()=>{ clearMap(); document.getElementById('status').textContent='Temizlendi.'; };
-</script>
+    async function solve(){
+      setBusy(true);
+      clearMap();
+
+      let depots, stops;
+      try{
+        depots = parseLines('depots');
+        stops  = parseLines('stops');
+      }catch(e){
+        showAlert('Girdi hatası: ' + e.message, 'danger');
+        setBusy(false);
+        return;
+      }
+
+      const method = document.getElementById('method').value;
+
+      try{
+        const res = await fetch('/alns/solve', {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({ depots, stops, method })
+        });
+        if(!res.ok){
+          const t = await res.text();
+          throw new Error(`${res.status} ${t}`);
+        }
+        const data = await res.json();
+        if(!data.trips || data.trips.length === 0){
+          showAlert('Rota bulunamadı veya sonuç boş döndü.', 'warning', 5000);
+          setBusy(false);
+          return;
+        }
+
+        const legend = document.getElementById('legend');
+        let bounds = null, totalDur = 0, totalDist = 0;
+
+        data.trips.forEach((t, i) => {
+          const col = palette[i % palette.length];
+          const trip = t.trip.trips[0];
+          totalDur += trip.duration; totalDist += trip.distance;
+
+          // Çizgi
+          const line = L.geoJSON(trip.geometry, { color: col, weight: 5, opacity: .9 }).addTo(map);
+          layers.push(line);
+          bounds = bounds ? bounds.extend(line.getBounds()) : line.getBounds();
+
+          // Markerlar (waypoint sırasına göre; 0 = başlangıç)
+          const ordered = t.trip.waypoints
+            .slice()
+            .sort((a,b) => a.waypoint_index - b.waypoint_index)
+            .map(w => ({ lat: w.location[1], lon: w.location[0] }));
+
+          ordered.forEach((p, k) => {
+            const label = k===0 ? `Araç ${i+1} Başlangıç` : `Araç ${i+1} Uğrak #${k}`;
+            const mk = L.marker([p.lat, p.lon], { icon: numIcon(k+1, col) })
+              .addTo(map)
+              .bindPopup(label);
+            markers.push(mk);
+          });
+
+          // Legend etiketi
+          const tag = document.createElement('span');
+          tag.className = 'legend-badge';
+          tag.innerHTML = `<span class="legend-dot" style="background:${col}"></span> Araç ${i+1}: ${fmtMin(trip.duration)}, ${fmtKm(trip.distance)}`;
+          legend.appendChild(tag);
+        });
+
+        if(bounds) map.fitBounds(bounds, { padding: [16,16] });
+
+        // Makespan bilgisi (en uzun rota)
+        const perVehDur = data.trips.map(t => t.trip.trips[0].duration);
+        const makespan = Math.max(...perVehDur);
+        statusEl.className = 'badge text-bg-success status-badge';
+        statusEl.textContent = `Araç: ${data.trips.length} • Makespan: ${fmtMin(makespan)} • Toplam: ${fmtMin(totalDur)} / ${fmtKm(totalDist)}`;
+
+      }catch(err){
+        console.error(err);
+        showAlert('Sunucu hatası: ' + err.message, 'danger', 7000);
+      }finally{
+        setBusy(false);
+      }
+    }
+  </script>
 </body>
 </html>
