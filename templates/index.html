@@ -90,6 +90,17 @@
                   <option value="aco">Ant Colony</option>
                 </select>
               </div>
+
+              <div class="col">
+  <label for="improve" class="form-label mb-0">İyileştirme</label>
+  <select id="improve" class="form-select">
+    <option value="">Yok</option>
+    <option value="2opt">2-Opt</option>
+    <option value="3opt">3-Opt</option>
+  </select>
+</div>
+
+              
               <div class="ms-auto d-flex gap-2">
                 <button class="btn btn-primary btn-icon" id="btnSolve">
                   <i class="bi bi-play-fill"></i> Çöz
@@ -127,6 +138,10 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
+
+    const improve = document.getElementById("improve").value;
+body: JSON.stringify({ depots, stops, method, improve })
+
     // ---- Bootstrap helpers ----
     function showAlert(message, variant="danger", timeout=4500){
       const wrapper = document.createElement('div');
