@@ -12,118 +12,41 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
   <style>
-    :root{
-      --glass-bg: rgba(17,17,17,.55);
-      --glass-stroke: rgba(255,255,255,.12);
-      --glass-shadow: 0 10px 30px rgba(0,0,0,.45);
-      --card-radius: 16px;
-      --ring: 0 0 0 .25rem rgba(59,130,246,.35);
-    }
-    /* Arkaplan: koyu degrade + grid */
-    body{
-      min-height:100dvh;
-      background:
-        radial-gradient(1200px 800px at 0% 0%, #0b0b0b 0%, #000 60%),
-        radial-gradient(1200px 800px at 100% 100%, #0f172a 0%, #000 60%),
-        #000;
-      color:#e5e7eb;
-    }
-    .glass {
-      background: var(--glass-bg);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      border: 1px solid var(--glass-stroke);
-      border-radius: var(--card-radius);
-      box-shadow: var(--glass-shadow);
-    }
+    :root{ --card-radius:1rem; }
+    body{background:#f7f9fb}
     .navbar-brand{font-weight:600; letter-spacing:.2px}
+    .card{border:1px solid #e6ebf1; border-radius:var(--card-radius); box-shadow:0 1px 2px rgba(10,10,10,.03)}
+    .card-header{background:#fff; font-weight:600; border-top-left-radius:var(--card-radius); border-top-right-radius:var(--card-radius)}
+    .form-text{color:#6b7280}
+    #map{height:clamp(360px,62vh,76vh); border-radius:.75rem}
+    .legend-badge{display:inline-flex; align-items:center; gap:.5rem; background:#f3f4f6; border-radius:999px; padding:.3rem .7rem; font-size:.875rem}
+    .legend-dot{width:10px; height:10px; border-radius:50%}
     .status-badge{font-size:.875rem}
     .btn-icon{display:inline-flex; align-items:center; gap:.5rem}
-
-    /* Kartlar */
-    .card{
-      background: var(--glass-bg);
-      border:1px solid var(--glass-stroke);
-      border-radius:var(--card-radius);
-      box-shadow:var(--glass-shadow);
-      color:#e5e7eb;
+    .alert-placeholder{position:fixed; top:72px; right:16px; z-index:1055; width:min(420px,92vw)}
+    /* DivIcon stilleri */
+    .ico {
+      display:flex; align-items:center; justify-content:center;
+      width:34px; height:34px; border-radius:50%; color:#fff;
+      border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.25);
+      font-size:16px;
     }
-    .card-header{
-      background:rgba(255,255,255,.04);
-      border-bottom:1px solid var(--glass-stroke);
-      border-top-left-radius:var(--card-radius);
-      border-top-right-radius:var(--card-radius);
-      font-weight:600;
-    }
-    .card-footer{
-      background:rgba(255,255,255,.04);
-      border-top:1px solid var(--glass-stroke);
-    }
-
-    /* Formlar */
-    .form-label{color:#cbd5e1}
-    .form-control, .form-select{
-      color:#e5e7eb;
-      background:rgba(255,255,255,.06);
-      border:1px solid rgba(255,255,255,.12);
-    }
-    .form-control:focus, .form-select:focus{box-shadow:var(--ring); border-color:#60a5fa}
-    .form-text{color:#9ca3af}
-
-    /* Harita */
-    #map{height: clamp(360px, 62vh, 76vh); border-radius:12px; outline:1px solid var(--glass-stroke)}
-    .legend-badge{display:inline-flex; align-items:center; gap:.5rem; background:rgba(255,255,255,.06); border:1px solid var(--glass-stroke); border-radius:999px; padding:.35rem .75rem; font-size:.9rem}
-    .legend-dot{width:10px; height:10px; border-radius:50%}
-
-    /* Numara ikonları */
+    .ico-depot{ background:#6c757d }  /* gri */
+    .ico-truck{ background:#0d6efd }  /* mavi */
     .num-ico div{
       width:28px; height:28px; border-radius:50%;
       color:#fff; display:flex; align-items:center; justify-content:center;
-      border:2px solid #0b0b0b; box-shadow:0 1px 6px rgba(0,0,0,.5);
-      font-weight:700; font-size:.8rem
+      border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.25);
+      font-weight:600; font-size:.8rem
     }
-
-    /* Alert alanı */
-    .alert-placeholder{position:fixed; top:72px; right:16px; z-index:1055; width:min(420px, 92vw)}
-
-    /* Navbar camı */
-    .nav-glass{
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      background:linear-gradient(to bottom, rgba(17,17,17,.7), rgba(17,17,17,.45));
-      border-bottom:1px solid var(--glass-stroke);
-    }
-
-    /* Küçük detaylar */
-    .container-lg{max-width:1200px}
-    .toggle{
-      appearance:none; width:48px; height:26px; border-radius:999px; position:relative;
-      background:#111; border:1px solid var(--glass-stroke); outline:none; cursor:pointer;
-    }
-    .toggle:after{
-      content:""; position:absolute; top:2px; left:2px; width:22px; height:22px; border-radius:50%;
-      background:#fff; transition:left .18s ease;
-    }
-    .toggle:checked{background:#111}
-    .toggle:checked:after{left:24px}
   </style>
 </head>
-<body data-bs-theme="dark">
+<body>
   <!-- Navbar -->
-  <nav class="navbar navbar-expand-lg nav-glass sticky-top">
+  <nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top">
     <div class="container-lg">
-      <a class="navbar-brand d-flex align-items-center gap-2 text-light" href="#">
-        <i class="bi bi-intersect"></i> Çoklu Araç Rota Planlama
-      </a>
-
-      <div class="ms-auto d-flex align-items-center gap-3">
-        <div class="d-flex align-items-center gap-2">
-          <i class="bi bi-moon-stars text-warning"></i>
-          <input id="themeToggle" class="toggle" type="checkbox" aria-label="Tema değiştir">
-          <i class="bi bi-sun text-warning"></i>
-        </div>
-        <span class="badge text-bg-secondary status-badge" id="status">Hazır</span>
-      </div>
+      <a class="navbar-brand d-flex align-items-center gap-2" href="#">Çoklu Araç Rota Planlama</a>
+      <span class="badge text-bg-light status-badge" id="status">Hazır</span>
     </div>
   </nav>
 
@@ -163,8 +86,8 @@
 38.731,35.479
 36.812,34.642</textarea>
 
-            <div class="d-flex align-items-end gap-3 mt-3 flex-wrap">
-              <div>
+            <div class="row mt-3 g-3">
+              <div class="col-sm-6 col-md-4">
                 <label for="method" class="form-label mb-1">Çözüm Metodu</label>
                 <select id="method" class="form-select">
                   <option value="alns" selected>ALNS (Önerilen)</option>
@@ -172,8 +95,7 @@
                   <option value="aco">Ant Colony</option>
                 </select>
               </div>
-
-              <div>
+              <div class="col-sm-6 col-md-4">
                 <label for="improve" class="form-label mb-1">İyileştirme</label>
                 <select id="improve" class="form-select">
                   <option value="">Yok</option>
@@ -181,12 +103,11 @@
                   <option value="3opt">3-Opt</option>
                 </select>
               </div>
-
-              <div class="ms-auto d-flex gap-2">
+              <div class="col-md-4 d-flex align-items-end justify-content-md-end gap-2">
                 <button class="btn btn-primary btn-icon" id="btnSolve">
                   <i class="bi bi-play-fill"></i> Çöz
                 </button>
-                <button class="btn btn-outline-light btn-icon" id="btnClear">
+                <button class="btn btn-outline-secondary btn-icon" id="btnClear">
                   <i class="bi bi-trash3"></i> Temizle
                 </button>
               </div>
@@ -206,7 +127,7 @@
           <div class="card-body">
             <div id="map" class="w-100"></div>
           </div>
-          <div class="card-footer">
+          <div class="card-footer bg-white">
             <div class="d-flex flex-wrap gap-2" id="legend"></div>
           </div>
         </div>
@@ -220,26 +141,11 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
-    // Tema
-    const themeToggle = document.getElementById('themeToggle');
-    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const savedTheme = localStorage.getItem('ui-theme');
-    const theme = savedTheme || (prefersDark ? 'dark' : 'dark'); // varsayılan dark
-    document.body.setAttribute('data-bs-theme', theme);
-    themeToggle.checked = theme === 'dark';
-
-    themeToggle.addEventListener('change', () => {
-      const t = themeToggle.checked ? 'dark' : 'light';
-      document.body.setAttribute('data-bs-theme', t);
-      localStorage.setItem('ui-theme', t);
-      switchBaseLayer(t);
-    });
-
-    // Alert
+    // ---- Alert helper ----
     function showAlert(message, variant="danger", timeout=4500){
       const wrapper = document.createElement('div');
       wrapper.innerHTML = `
-        <div class="alert alert-${variant} alert-dismissible fade show shadow-sm glass" role="alert">
+        <div class="alert alert-${variant} alert-dismissible fade show shadow-sm" role="alert">
           ${message}
           <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Kapat"></button>
         </div>`;
@@ -253,32 +159,22 @@
       }
     }
 
-    // Harita
-    const map = L.map('map', { zoomControl: true }).setView([39,35], 6);
+    // ---- Leaflet init ----
+    const map = L.map('map').setView([39,35], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
 
-    const baseLight = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-      maxZoom: 19, attribution: '&copy; OpenStreetMap'
-    });
+    const palette = ['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#17becf','#8c564b','#e377c2','#7f7f7f','#bcbd22'];
 
-    const baseDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
-      maxZoom: 19, attribution: '&copy; OpenStreetMap & Carto'
-    });
+    let layers = [];         // rota çizgileri
+    let routeMarkers = [];   // waypoint numara markerları
+    let previewMarkers = []; // depo & araç ön izlemesi
 
-    function switchBaseLayer(mode){
-      if(mode === 'light'){
-        map.removeLayer(baseDark); baseLight.addTo(map);
-      }else{
-        map.removeLayer(baseLight); baseDark.addTo(map);
-      }
-    }
-    switchBaseLayer(document.body.getAttribute('data-bs-theme'));
-
-    const palette = ['#60a5fa','#f59e0b','#22c55e','#ef4444','#8b5cf6','#06b6d4','#a16207','#e879f9','#9ca3af','#a3e635'];
-    let layers = [], markers = [];
-
-    function clearMap(){
+    function clearRoutes(){
       layers.forEach(l => map.removeLayer(l)); layers = [];
-      markers.forEach(m => map.removeLayer(m)); markers = [];
+      routeMarkers.forEach(m => map.removeLayer(m)); routeMarkers = [];
       document.getElementById('legend').innerHTML = '';
     }
 
@@ -292,6 +188,21 @@
         });
     }
 
+    // ---- Özel ikonlar (Bootstrap Icons ile) ----
+    function depotIcon(){
+      return L.divIcon({
+        className:'ico-depot',
+        html:`<div class="ico ico-depot"><i class="bi bi-building"></i></div>`,
+        iconSize:[34,34], iconAnchor:[17,17], popupAnchor:[0,-12]
+      });
+    }
+    function truckIcon(){
+      return L.divIcon({
+        className:'ico-truck',
+        html:`<div class="ico ico-truck"><i class="bi bi-truck"></i></div>`,
+        iconSize:[34,34], iconAnchor:[17,17], popupAnchor:[0,-12]
+      });
+    }
     function numIcon(n, colorHex){
       return L.divIcon({
         className: 'num-ico',
@@ -315,15 +226,77 @@
         btnSolve.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Çözülüyor`;
       }else{
         btnSolve.disabled = false;
-        statusEl.className = 'badge text-bg-secondary status-badge';
+        statusEl.className = 'badge text-bg-light status-badge';
         statusEl.textContent = 'Hazır';
         btnSolve.innerHTML = `<i class="bi bi-play-fill"></i> Çöz`;
       }
     }
 
+    // ---- Depo & Araç ön izleme ----
+    function clearPreview(){
+      previewMarkers.forEach(m => map.removeLayer(m));
+      previewMarkers = [];
+    }
+
+    // depo ve araç aynı koordinasyonda ise aracı azıcık kaydır (overlap engelleme)
+    function offsetLatLng(lat, lon, metersNorth=15, metersEast=15){
+      const dLat = metersNorth / 111111; // ~111km per deg
+      const dLon = metersEast / (111111 * Math.cos(lat * Math.PI / 180));
+      return [lat + dLat, lon + dLon];
+    }
+
+    function renderPreview(){
+      clearPreview();
+      let depots;
+      try{
+        depots = parseLines('depots');
+      }catch{
+        return; // geçersizse çizmeyelim
+      }
+      const colorFor = (i)=> palette[i % palette.length];
+
+      let bounds = null;
+
+      depots.forEach((p, i)=>{
+        const lat = p[0], lon = p[1];
+        // Depo ikonu
+        const md = L.marker([lat, lon], { icon: depotIcon(), zIndexOffset: 500 })
+          .addTo(map)
+          .bindPopup(`(depo: ${i+1})`);
+        previewMarkers.push(md);
+
+        // Araç ikonu (az ofset)
+        const [lat2, lon2] = offsetLatLng(lat, lon, 25, 25);
+        const mv = L.marker([lat2, lon2], { icon: truckIcon(), zIndexOffset: 700 })
+          .addTo(map)
+          .bindPopup(`(araç: ${i+1})`);
+        previewMarkers.push(mv);
+
+        const latlngs = [ [lat,lon], [lat2,lon2] ];
+        const groupBounds = L.latLngBounds(latlngs);
+        bounds = bounds ? bounds.extend(groupBounds) : groupBounds;
+      });
+
+      if(bounds){
+        map.fitBounds(bounds, { padding:[16,16] });
+      }
+    }
+
+    // İlk açılışta ve depolar değişince ön izleme çiz
+    document.addEventListener('DOMContentLoaded', renderPreview);
+    document.getElementById('depots').addEventListener('input', debounce(()=> {
+      renderPreview();
+    }, 300));
+
+    // Basit debounce
+    function debounce(fn, ms){
+      let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn.apply(this,args), ms); }
+    }
+
     btnClear.addEventListener('click', () => {
-      clearMap();
-      statusEl.className = 'badge text-bg-secondary status-badge';
+      clearRoutes();           // rotaları ve waypointleri temizle
+      renderPreview();         // ön izlemede depolar & araçlar kalsın/güncellensin
+      statusEl.className = 'badge text-bg-light status-badge';
       statusEl.textContent = 'Temizlendi';
       setTimeout(()=>{ statusEl.textContent = 'Hazır'; }, 1200);
     });
@@ -332,7 +305,7 @@
 
     async function solve(){
       setBusy(true);
-      clearMap();
+      clearRoutes(); // sadece rota katmanlarını temizle, ön izleme dursun
 
       let depots, stops;
       try{
@@ -372,10 +345,12 @@
           const trip = t.trip.trips[0];
           totalDur += trip.duration; totalDist += trip.distance;
 
-          const line = L.geoJSON(trip.geometry, { color: col, weight: 5, opacity: .95 }).addTo(map);
+          // Çizgi
+          const line = L.geoJSON(trip.geometry, { color: col, weight: 5, opacity: .9 }).addTo(map);
           layers.push(line);
           bounds = bounds ? bounds.extend(line.getBounds()) : line.getBounds();
 
+          // Markerlar (waypoint sırasına göre; 0 = başlangıç)
           const ordered = t.trip.waypoints
             .slice()
             .sort((a,b) => a.waypoint_index - b.waypoint_index)
@@ -386,9 +361,10 @@
             const mk = L.marker([p.lat, p.lon], { icon: numIcon(k+1, col) })
               .addTo(map)
               .bindPopup(label);
-            markers.push(mk);
+            routeMarkers.push(mk);
           });
 
+          // Legend etiketi
           const tag = document.createElement('span');
           tag.className = 'legend-badge';
           tag.innerHTML = `<span class="legend-dot" style="background:${col}"></span> Araç ${i+1}: ${fmtMin(trip.duration)}, ${fmtKm(trip.distance)}`;
@@ -397,6 +373,7 @@
 
         if(bounds) map.fitBounds(bounds, { padding: [16,16] });
 
+        // Makespan bilgisi (en uzun rota)
         const perVehDur = data.trips.map(t => t.trip.trips[0].duration);
         const makespan = Math.max(...perVehDur);
         statusEl.className = 'badge text-bg-success status-badge';
