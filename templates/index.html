@@ -10,7 +10,7 @@
     body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial}
     header, .panel{padding:12px 16px}
     .grid{display:grid;gap:10px;grid-template-columns:1fr 1fr}
-    textarea,input,button{padding:8px;border:1px solid #ccc;border-radius:8px}
+    textarea,input,button,select{padding:8px;border:1px solid #ccc;border-radius:8px}
     button{background:#0d6efd;color:#fff;border:0;cursor:pointer}
     #map{height:65vh;margin:12px 16px;border-radius:10px}
     .legend{display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 12px 16px}
@@ -44,7 +44,7 @@
     </div>
   </div>
 
-  <div class="panel" style="display:flex;gap:8px;align-items:center">
+  <div class="panel" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <label for="method"><b>Çözüm Metodu:</b></label>
     <select id="method">
       <option value="alns" selected>ALNS</option>
@@ -88,6 +88,24 @@ function numIcon(n, colorHex){
 function fmtMin(s){return `${Math.round(s/60)} dk`;}
 function fmtKm(m){return (m/1000).toFixed(1)+' km';}
 
+// Animasyonlu rota çizimi
+function animateRoute(coords, color, onFinish){
+  let i = 0;
+  const polyline = L.polyline([], {color: color, weight:5, opacity:.9}).addTo(map);
+  layers.push(polyline);
+
+  function step(){
+    if(i < coords.length){
+      polyline.addLatLng([coords[i][1], coords[i][0]]);
+      i++;
+      setTimeout(step, 40); // hız (ms) → daha hızlı/yavaş için değiştir
+    }else if(onFinish){
+      onFinish();
+    }
+  }
+  step();
+}
+
 async function solve(){
   const status = document.getElementById('status');
   status.textContent='Hesaplanıyor...'; 
@@ -116,37 +134,44 @@ async function solve(){
     const legend = document.getElementById('legend');
     let bounds=null, totalDur=0, totalDist=0;
 
-    data.trips.forEach((t, i)=>{
-      const col = palette[i % palette.length];
+    function drawTrip(idx){
+      if(idx >= data.trips.length){
+        status.textContent = `Araç: ${data.trips.length} • Toplam süre: ${fmtMin(totalDur)} • Toplam mesafe: ${fmtKm(totalDist)}`;
+        return;
+      }
+      const t = data.trips[idx];
+      const col = palette[idx % palette.length];
       const trip = t.trip.trips[0];
       totalDur += trip.duration; totalDist += trip.distance;
 
-      // Rota çiz
-      const line = L.geoJSON(trip.geometry, {color: col, weight:5, opacity:.9}).addTo(map);
-      layers.push(line);
-      bounds = bounds ? bounds.extend(line.getBounds()) : line.getBounds();
+      // animasyonlu rota çizimi
+      const coords = trip.geometry.coordinates;
+      animateRoute(coords, col, ()=>drawTrip(idx+1));
 
-      // Waypoint sırasına göre marker’lar
+      // markerlar
       const ordered = t.trip.waypoints
         .slice()
         .sort((a,b)=>a.waypoint_index - b.waypoint_index)
         .map(w=>({lat:w.location[1], lon:w.location[0]}));
 
       ordered.forEach((p, k)=>{
-        const label = k===0 ? `Araç ${i+1} Başlangıç` : `Araç ${i+1} Uğrak #${k}`;
+        const label = k===0 ? `Araç ${idx+1} Başlangıç` : `Araç ${idx+1} Uğrak #${k}`;
         const mk = L.marker([p.lat, p.lon], {icon: numIcon(k+1, col)}).addTo(map).bindPopup(label);
         markers.push(mk);
       });
 
-      // Legend
+      // legend
       const tag = document.createElement('div');
       tag.className='tag';
-      tag.innerHTML = `<span class="dot" style="background:${col}"></span> Araç ${i+1}: ${fmtMin(trip.duration)}, ${fmtKm(trip.distance)}`;
+      tag.innerHTML = `<span class="dot" style="background:${col}"></span> Araç ${idx+1}: ${fmtMin(trip.duration)}, ${fmtKm(trip.distance)}`;
       legend.appendChild(tag);
-    });
 
-    if(bounds) map.fitBounds(bounds, {padding:[20,20]});
-    status.textContent = `Araç: ${data.trips.length} • Toplam süre: ${fmtMin(totalDur)} • Toplam mesafe: ${fmtKm(totalDist)}`;
+      // fit bounds
+      bounds = bounds ? bounds.extend(L.latLngBounds(ordered.map(p=>[p.lat,p.lon]))) : L.latLngBounds(ordered.map(p=>[p.lat,p.lon]));
+      if(bounds) map.fitBounds(bounds, {padding:[20,20]});
+    }
+
+    drawTrip(0); // ilk aracı çiz
   }catch(err){
     console.error(err);
     status.textContent='Hata: '+err.message;
