@@ -1,68 +1,75 @@
 from typing import List, Tuple
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
-from services.local_search import route_cost
 
-def ortools_optimize(matrix: List[List[float]], depot_idxs: List[int], stop_idxs: List[int]) -> Tuple[List[List[int]], float]:
+def ortools_optimize(matrix: List[List[float]], depot_idxs: List[int], stop_idxs: List[int],
+                     demands: List[float]=None, vehicle_caps: List[float]=None) -> Tuple[List[List[int]], float]:
+    # Bu fonksiyon tek depo/tek araç listesi ile çağrılıyor: depot_idxs uzunluğu == 1 varsayımı
     num_vehicles = len(depot_idxs)
-    num_nodes = len(matrix)
-    all_nodes = list(range(num_nodes))
+    if num_vehicles != 1:
+        # mevcut çağrı kalıbında her alt-tur için tek araç geliyor
+        pass
+
+    nodes = depot_idxs + stop_idxs
+    index_map = {n:i for i,n in enumerate(nodes)}
+    tm = [[matrix[a][b] for b in nodes] for a in nodes]
 
     data = {
-        "time_matrix": matrix,
-        "num_vehicles": num_vehicles,
-        "starts": depot_idxs,
-        "ends": depot_idxs,
+        "time_matrix": tm,
+        "num_vehicles": 1,
+        "starts": [0],
+        "ends": [0],
+        "demands": [0.0] + [0.0 if demands is None else float(demands[i]) for i in range(len(stop_idxs))],
+        "vehicle_caps": [10**12 if vehicle_caps is None else float(vehicle_caps[0])],
     }
 
-    manager = pywrapcp.RoutingIndexManager(
-        len(data["time_matrix"]),
-        data["num_vehicles"],
-        data["starts"],
-        data["ends"],
-    )
+    manager = pywrapcp.RoutingIndexManager(len(data["time_matrix"]), data["num_vehicles"], data["starts"], data["ends"])
     routing = pywrapcp.RoutingModel(manager)
 
-    def time_callback(from_index, to_index):
-        from_node = manager.IndexToNode(from_index)
-        to_node = manager.IndexToNode(to_index)
-        return int(data["time_matrix"][from_node][to_node])
+    def time_cb(from_index, to_index):
+        a = manager.IndexToNode(from_index); b = manager.IndexToNode(to_index)
+        return int(data["time_matrix"][a][b])
 
-    transit_callback_index = routing.RegisterTransitCallback(time_callback)
-    routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
+    tcb = routing.RegisterTransitCallback(time_cb)
+    routing.SetArcCostEvaluatorOfAllVehicles(tcb)
 
-    routing.AddDimension(
-        transit_callback_index,
-        0,
-        10**9,
-        True,
-        "Time",
+    # Kapasite boyutu
+    def demand_cb(index):
+        node = manager.IndexToNode(index)
+        return int(data["demands"][node])
+    dcb = routing.RegisterUnaryTransitCallback(demand_cb)
+    routing.AddDimensionWithVehicleCapacity(
+        dcb, 0, [int(data["vehicle_caps"][0])], True, "Capacity"
     )
+
+    # Zaman boyutu ve makespan finalizer
+    routing.AddDimension(tcb, 0, 10**12, True, "Time")
     time_dimension = routing.GetDimensionOrDie("Time")
-    end_vars = [time_dimension.CumulVar(routing.End(v)) for v in range(num_vehicles)]
-    routing.AddVariableMinimizedByFinalizer(max(end_vars))
+    end_var = time_dimension.CumulVar(routing.End(0))
+    routing.AddVariableMinimizedByFinalizer(end_var)
 
-    search_params = pywrapcp.DefaultRoutingSearchParameters()
-    search_params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
-    search_params.local_search_metaheuristic = routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
-    search_params.time_limit.seconds = 20
-    search_params.log_search = False
+    params = pywrapcp.DefaultRoutingSearchParameters()
+    params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+    params.local_search_metaheuristic = routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
+    params.time_limit.seconds = 10
 
-    solution = routing.SolveWithParameters(search_params)
-    routes = []
+    sol = routing.SolveWithParameters(params)
+    if not sol:
+        return [[]], 0.0
 
-    if not solution:
-        return [[] for _ in range(num_vehicles)], 0.0
+    # çözümü topla
+    route = []
+    idx = routing.Start(0)
+    while not routing.IsEnd(idx):
+        node = manager.IndexToNode(idx)
+        if node != 0:  # depot
+            # geri global indeks
+            route.append(nodes[node])
+        idx = sol.Value(routing.NextVar(idx))
 
-    for v in range(num_vehicles):
-        index = routing.Start(v)
-        route = []
-        while not routing.IsEnd(index):
-            node = manager.IndexToNode(index)
-            if node not in depot_idxs:
-                route.append(node)
-            index = solution.Value(routing.NextVar(index))
-        routes.append(route)
-
-    costs = [route_cost(matrix, depot_idxs[v], routes[v]) for v in range(num_vehicles)]
-    makespan = max(costs) if costs else 0.0
-    return routes, makespan
+    # makespan
+    def _rc(start_idx, seq):
+        if not seq: return 0.0
+        c = matrix[start_idx][seq[0]]
+        for i in range(len(seq)-1): c += matrix[seq[i]][seq[i+1]]
+        return float(c)
+    return [route], _rc(depot_idxs[0], route)
