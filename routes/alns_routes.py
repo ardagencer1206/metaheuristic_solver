@@ -5,6 +5,7 @@ from services.alns_solver import alns_optimize
 from services.greedy_solver import greedy_optimize
 from services.aco_solver import aco_optimize
 from services.local_search import two_opt, three_opt, route_cost
+from services.ortools_solver import ortools_optimize
 
 alns_bp = Blueprint("alns", __name__, template_folder="../templates")
 
@@ -73,9 +74,11 @@ def solve():
             routes, _ = greedy_optimize(mat, depot_idxs, stop_idxs)
         elif method == "aco":
             routes, _ = aco_optimize(mat, depot_idxs, stop_idxs)
+        elif method == "ortools":
+            routes, cost = ortools_optimize(mat, depot_idxs, stop_idxs)
         else:  # default ALNS
             routes, _ = alns_optimize(mat, depot_idxs, stop_idxs)
-
+        
         # 3) BAZ (GERÇEK) TRIP'LER ve METRİKLER
         base_trips = []
         for v, idxs in enumerate(routes):
