@@ -8,7 +8,7 @@ from services.aco_solver import aco_optimize
 from services.local_search import two_opt, three_opt, route_cost
 from services.ortools_solver import ortools_optimize
 
-# ---- Blueprint ÖNCE tanımlı olmalı ----
+# ---- Blueprint ----
 alns_bp = Blueprint("alns", __name__, template_folder="../templates")
 
 # ---- UI ----
@@ -33,12 +33,16 @@ def _ok_point(p):
 def _ok_num(x):
     return isinstance(x, (int, float)) and isfinite(x)
 
-def _makespan_from_trips(trips_json):
-    """OSRM trip JSON listesine göre makespan (saniye)."""
+def _makespan_by_vehicle(trips_json):
+    """Aynı araç birden çok alt-trip yapabilir. Araç sürelerini topla, sonra maksimumu al."""
     if not trips_json:
         return 0
-    durs = [t["trip"]["trips"][0]["duration"] for t in trips_json]
-    return max(durs) if durs else 0
+    per = {}
+    for t in trips_json:
+        v = int(t["vehicle"])
+        dur = t["trip"]["trips"][0]["duration"]
+        per[v] = per.get(v, 0) + dur
+    return max(per.values()) if per else 0
 
 def _totals_from_trips(trips_json):
     if not trips_json:
@@ -86,7 +90,7 @@ def _assign_customers_to_depots(mat, depot_idxs, stop_idxs, demands, depot_stock
             return None
     return assign
 
-# ---- Çözüm uç noktası ----
+# ---- Ana çözüm uç noktası ----
 @alns_bp.route("/solve", methods=["POST"])
 def solve():
     try:
@@ -157,39 +161,41 @@ def solve():
                 routed_groups.append((v, cur_group))
 
         # 4) Her grup için iç sıralama + local search
-        final_routes = [[] for _ in range(V)]
+        groups_by_vehicle = {v: [] for v in range(V)}  # v -> [seq1, seq2, ...]
         for v, grp in routed_groups:
-            # tek depo ile çağır
             if method == "greedy":
                 sub_routes, _ = greedy_optimize(mat, [depot_idxs[v]], grp)
             elif method == "aco":
                 sub_routes, _ = aco_optimize(mat, [depot_idxs[v]], grp)
             elif method == "ortools":
-                # alt-turda tek araç varsayımı
                 sub_routes, _ = ortools_optimize(mat, [depot_idxs[v]], grp)
             else:
                 sub_routes, _ = alns_optimize(mat, [depot_idxs[v]], grp)
 
             seq = sub_routes[0] if sub_routes else []
-
             if improve == "2opt":
                 seq = two_opt([seq], mat, [depot_idxs[v]])[0]
             elif improve == "3opt":
                 seq = three_opt([seq], mat, [depot_idxs[v]])[0]
-
-            final_routes[v].extend(seq)
+            groups_by_vehicle[v].append(seq)
 
         # 5) OSRM TRIP ve metrikler
         base_trips = []
+        final_routes = [[] for _ in range(V)]
         for v in range(V):
-            if not final_routes[v]:
-                continue
-            stop_coords = [all_coords[j] for j in final_routes[v]]
-            base_trips.append({"vehicle": v, "trip": osrm_trip(depots[v], stop_coords)})
+            for seq in groups_by_vehicle[v]:
+                if not seq:
+                    continue
+                stop_coords = [all_coords[j] for j in seq]
+                base_trips.append({"vehicle": v, "trip": osrm_trip(depots[v], stop_coords)})
+                final_routes[v].extend(seq)
 
-        base_mk_real = _makespan_from_trips(base_trips)
-        base_costs_matrix = [route_cost(mat, depot_idxs[v], final_routes[v]) for v in range(V)]
-        base_mk_matrix = max(base_costs_matrix) if base_costs_matrix else 0
+        # Araç bazında toplam sürelerden makespan
+        base_mk_real = _makespan_by_vehicle(base_trips)
+        base_mk_matrix = max(
+            (sum(route_cost(mat, depot_idxs[v], seq) for seq in groups_by_vehicle[v]) for v in range(V)),
+            default=0,
+        )
         totals = _totals_from_trips(base_trips)
 
         return jsonify({
@@ -197,11 +203,12 @@ def solve():
             "improve": improve,
             "improve_accepted": True,
             "routes": final_routes,
+            "assign": {str(v): assign[v] for v in range(V)},
+            "groups": {str(v): groups_by_vehicle[v] for v in range(V)},
             "makespan_real": base_mk_real,
             "makespan_matrix": base_mk_matrix,
             "trips": base_trips,
             "totals": totals,
-            "assignment": {str(v): final_routes[v] for v in range(V)},
             "vehicle_caps": vehicle_caps,
         })
 
