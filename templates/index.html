@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <title>Çoklu Araçlı Rota Planlama | ALNS · Greedy · ACO · 2-Opt · 3-Opt</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+  <style>
+    :root{--card-radius:1rem;}
+    body{background:#f7f9fb}
+    .navbar-brand{font-weight:600;letter-spacing:.2px}
+    .card{border:1px solid #e6ebf1;border-radius:var(--card-radius);box-shadow:0 1px 2px rgba(10,10,10,.03)}
+    .card-header{background:#fff;font-weight:600;border-top-left-radius:var(--card-radius);border-top-right-radius:var(--card-radius)}
+    .form-text{color:#6b7280}
+    #map{height:clamp(360px,62vh,76vh);border-radius:.75rem}
+    .legend-badge{display:inline-flex;align-items:center;gap:.5rem;background:#f3f4f6;border-radius:999px;padding:.3rem .7rem;font-size:.875rem}
+    .legend-dot{width:10px;height:10px;border-radius:50%}
+    .status-badge{font-size:.875rem}
+    .btn-icon{display:inline-flex;align-items:center;gap:.5rem}
+    .alert-placeholder{position:fixed;top:72px;right:16px;z-index:1055;width:min(420px,92vw)}
+    .num-ico div{width:28px;height:28px;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.25);font-weight:600;font-size:.8rem}
+    .depot-icon,.stop-icon{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3);font-size:1.1rem}
+    .depot-icon{background:#2563eb;color:#fff}
+    .stop-icon{background:#f59e0b;color:#fff}
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top">
+    <div class="container-lg">
+      <a class="navbar-brand d-flex align-items-center gap-2" href="#">Çoklu Araçlı Rota Planlama</a>
+      <span class="badge text-bg-light status-badge" id="status">Hazır</span>
+    </div>
+  </nav>
+
+  <div class="alert-placeholder" id="alertPlaceholder"></div>
+
+  <main class="container-lg my-4">
+    <div class="row g-4">
+      <!-- Depolar -->
+      <div class="col-12 col-lg-6">
+        <div class="card">
+          <div class="card-header"><i class="bi bi-geo-alt me-2"></i>Depolar</div>
+          <div class="card-body">
+            <label for="depots" class="form-label">Her satıra <code>enlem, boylam</code></label>
+            <textarea id="depots" rows="7" class="form-control" placeholder="41.015,28.979&#10;39.933,32.859">41.015,28.979
+39.933,32.859
+38.423,27.142</textarea>
+            <div class="form-text">Depo konumları araçların başlangıç noktasıdır.</div>
+
+            <div class="row mt-3 g-2">
+              <div class="col">
+                <label class="form-label">Depo Stokları <small class="text-muted">(virgülle)</small></label>
+                <input id="depot_stock" class="form-control" placeholder="100, 80, 120">
+              </div>
+              <div class="col">
+                <label class="form-label">Araç Kapasiteleri <small class="text-muted">(virgülle)</small></label>
+                <input id="vehicle_caps" class="form-control" placeholder="80, 80, 80">
+              </div>
+            </div>
+            <div class="form-text">Depo sayısı ile stok ve kapasite sayıları aynı olmalıdır.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Uğraklar -->
+      <div class="col-12 col-lg-6">
+        <div class="card">
+          <div class="card-header"><i class="bi bi-pin-map me-2"></i>Customer Noktaları</div>
+          <div class="card-body">
+            <label for="stops" class="form-label">Her satıra <code>enlem, boylam</code></label>
+            <textarea id="stops" rows="7" class="form-control" placeholder="40.195,29.060&#10;37.066,37.383">40.195,29.060
+37.066,37.383
+36.897,30.713
+41.657,26.563
+38.731,35.479</textarea>
+
+            <label class="form-label mt-3">Uğrak Talepleri (stops ile aynı sayıda, satır satır)</label>
+            <textarea id="demands" rows="5" class="form-control" placeholder="10&#10;8&#10;12"></textarea>
+
+            <div class="d-flex align-items-center gap-2 mt-3 flex-wrap">
+              <div>
+                <label class="form-label mb-0">Çözüm Metodu</label>
+                <select id="method" class="form-select">
+                  <option value="alns" selected>ALNS (Önerilen)</option>
+                  <option value="greedy">Greedy</option>
+                  <option value="aco">Ant Colony</option>
+                  <option value="ortools">OR-Tools</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label mb-0">İyileştirme</label>
+                <select id="improve" class="form-select">
+                  <option value="">Yok</option>
+                  <option value="2opt">2-Opt</option>
+                  <option value="3opt">3-Opt</option>
+                </select>
+              </div>
+              <div class="ms-auto d-flex gap-2">
+                <button class="btn btn-primary btn-icon" id="btnSolve"><i class="bi bi-play-fill"></i> Çöz</button>
+                <button class="btn btn-outline-secondary btn-icon" id="btnClear"><i class="bi bi-trash3"></i> Temizle</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Harita -->
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header"><i class="bi bi-map me-2"></i>Harita</div>
+          <div class="card-body"><div id="map" class="w-100"></div></div>
+          <div class="card-footer bg-white">
+            <div class="d-flex flex-wrap gap-2" id="legend">
+              <span class="legend-badge"><span class="legend-dot" style="background:#2563eb"></span>Depolar</span>
+              <span class="legend-badge"><span class="legend-dot" style="background:#f59e0b"></span>Uğraklar</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Scripts -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    function showAlert(msg,type="danger",ms=4000){
+      const el=document.createElement('div');
+      el.innerHTML=`<div class="alert alert-${type} alert-dismissible fade show shadow-sm">${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+      document.getElementById('alertPlaceholder').appendChild(el);
+      if(ms)setTimeout(()=>bootstrap.Alert.getOrCreateInstance(el.firstChild).close(),ms);
+    }
+
+    const map=L.map('map').setView([39,35],6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
+    const palette=['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#17becf','#8c564b','#e377c2','#7f7f7f','#bcbd22'];
+    let layers=[],markers=[],initialMarkers=[];
+
+    function depotIcon(){return L.divIcon({className:'',html:'<div class="depot-icon"><i class="bi bi-truck"></i></div>',iconSize:[32,32],iconAnchor:[16,32]});}
+    function stopIcon(){return L.divIcon({className:'',html:'<div class="stop-icon"><i class="bi bi-geo-alt-fill"></i></div>',iconSize:[32,32],iconAnchor:[16,32]});}
+    function numIcon(n,c){return L.divIcon({className:'num-ico',html:`<div style="background:${c}">${n}</div>`,iconSize:[28,28],iconAnchor:[14,28]});}
+    function fmtMin(s){return `${Math.round(s/60)} dk`; }
+    function fmtKm(m){return (m/1000).toFixed(1)+' km'; }
+
+    const statusEl=document.getElementById('status'),btnSolve=document.getElementById('btnSolve'),btnClear=document.getElementById('btnClear');
+    function setBusy(b){if(b){btnSolve.disabled=true;statusEl.className='badge text-bg-warning';statusEl.textContent='Hesaplanıyor…';btnSolve.innerHTML=`<span class="spinner-border spinner-border-sm me-1"></span>Çözülüyor`;}
+      else{btnSolve.disabled=false;statusEl.className='badge text-bg-light';statusEl.textContent='Hazır';btnSolve.innerHTML=`<i class="bi bi-play-fill"></i> Çöz`;}}
+    function parseLines(id){return document.getElementById(id).value.split('\n').map(s=>s.trim()).filter(Boolean).map(s=>{const p=s.split(',').map(Number);if(p.length!=2||p.some(x=>!isFinite(x)))throw Error('Format: enlem,boylam');return [p[0],p[1]]});}
+    function parseLinesNums(id){const arr=document.getElementById(id).value.split('\n').map(s=>s.trim()).filter(Boolean).map(Number);if(arr.some(x=>!isFinite(x)||x<0))throw Error('Pozitif sayılar girin');return arr;}
+    function parseCsvNums(id){const v=document.getElementById(id).value.trim();if(!v)return[];const arr=v.split(',').map(s=>Number(s.trim()));if(arr.some(x=>!isFinite(x)||x<0))throw Error('Pozitif sayılar girin');return arr;}
+
+    function showInitialMarkers(){
+      initialMarkers.forEach(m=>map.removeLayer(m));initialMarkers=[];
+      try{
+        const dep=parseLines('depots'),st=parseLines('stops');let b=null;
+        dep.forEach((d,i)=>{const m=L.marker(d,{icon:depotIcon()}).addTo(map).bindPopup(`Depo ${i+1}`);initialMarkers.push(m);b=b?b.extend(d):L.latLngBounds(d);});
+        st.forEach((s,i)=>{const m=L.marker(s,{icon:stopIcon()}).addTo(map).bindPopup(`Müşteri ${i+1}`);initialMarkers.push(m);b.extend(s);});
+        if(b)map.fitBounds(b,{padding:[40,40]});
+      }catch(e){console.warn(e.message);}
+    }
+
+    btnClear.onclick=()=>{layers.forEach(l=>map.removeLayer(l));markers.forEach(m=>map.removeLayer(m));showInitialMarkers();statusEl.textContent='Hazır';};
+    document.getElementById('depots').oninput=showInitialMarkers;
+    document.getElementById('stops').oninput=showInitialMarkers;
+    btnSolve.onclick=solve;
+
+    async function solve(){
+      setBusy(true);
+      layers.forEach(l=>map.removeLayer(l));markers.forEach(m=>map.removeLayer(m));initialMarkers.forEach(m=>map.removeLayer(m));
+      let depots,stops,demands,depot_stock,vehicle_caps;
+      try{
+        depots=parseLines('depots');stops=parseLines('stops');
+        demands=parseLinesNums('demands');depot_stock=parseCsvNums('depot_stock');vehicle_caps=parseCsvNums('vehicle_caps');
+        if(demands.length&&demands.length!==stops.length)throw Error('Talep sayısı stops ile aynı olmalı');
+        if(depot_stock.length&&depot_stock.length!==depots.length)throw Error('Depo stok sayısı depo sayısı ile aynı olmalı');
+        if(vehicle_caps.length&&vehicle_caps.length!==depots.length)throw Error('Araç kapasite sayısı depo sayısı ile aynı olmalı');
+      }catch(e){showAlert(e.message);setBusy(false);showInitialMarkers();return;}
+      const method=document.getElementById('method').value,improve=document.getElementById('improve').value;
+      try{
+        const r=await fetch('/alns/solve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({depots,stops,demands,depot_stock,vehicle_caps,method,improve})});
+        if(!r.ok)throw Error(await r.text());const d=await r.json();
+        if(!d.trips||!d.trips.length){showAlert('Rota bulunamadı','warning');setBusy(false);showInitialMarkers();return;}
+        const legend=document.getElementById('legend');legend.innerHTML='';let b=null,totDur=0,totDist=0;
+        d.trips.forEach((t,i)=>{const c=palette[i%palette.length],trip=t.trip.trips[0];totDur+=trip.duration;totDist+=trip.distance;
+          const line=L.geoJSON(trip.geometry,{color:c,weight:5,opacity:.9}).addTo(map);layers.push(line);b=b?b.extend(line.getBounds()):line.getBounds();
+          const pts=t.trip.waypoints.sort((a,b)=>a.waypoint_index-b.waypoint_index).map(w=>[w.location[1],w.location[0]]);
+          pts.forEach((p,k)=>{markers.push(L.marker(p,{icon:numIcon(k+1,c)}).addTo(map).bindPopup(`Araç ${t.vehicle+1} Nokta ${k+1}`));});
+          const tag=document.createElement('span');tag.className='legend-badge';tag.innerHTML=`<span class="legend-dot" style="background:${c}"></span>Araç ${t.vehicle+1}: ${fmtMin(trip.duration)}, ${fmtKm(trip.distance)}`;legend.appendChild(tag);
+        });
+        if(b)map.fitBounds(b,{padding:[16,16]});
+        const perVeh={};d.trips.forEach(t=>{const v=t.vehicle;perVeh[v]=(perVeh[v]||0)+t.trip.trips[0].duration;});
+        const makespan=Math.max(...Object.values(perVeh));
+        statusEl.className='badge text-bg-success';statusEl.textContent=`Araç: ${Object.keys(perVeh).length} • Makespan: ${fmtMin(makespan)} • Toplam: ${fmtMin(totDur)} / ${fmtKm(totDist)}`;
+      }catch(e){console.error(e);showAlert('Sunucu hatası: '+e.message,'danger',7000);showInitialMarkers();}
+      finally{setBusy(false);}
+    }
+
+    window.onload=showInitialMarkers;
+  </script>
+</body>
+</html>
