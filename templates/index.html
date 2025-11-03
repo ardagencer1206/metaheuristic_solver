@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
   <meta charset="utf-8" />
-  <title>Çoklu Araç Rota Planlama | ALNS · Greedy · ACO, 2opt, 3opt iyileştirme</title>
+  <title>Çoklu Araç Rota Planlama | ALNS · Greedy · ACO · 2-Opt · 3-Opt</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- Bootstrap 5 -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -12,9 +12,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
   <style>
-    :root{
-      --card-radius: 1rem;
-    }
+    :root{ --card-radius: 1rem; }
     body{background:#f7f9fb}
     .navbar-brand{font-weight:600; letter-spacing:.2px}
     .card{border:1px solid #e6ebf1; border-radius:var(--card-radius); box-shadow:0 1px 2px rgba(10,10,10,.03)}
@@ -26,42 +24,25 @@
     .status-badge{font-size:.875rem}
     .btn-icon{display:inline-flex; align-items:center; gap:.5rem}
     .alert-placeholder{position:fixed; top:72px; right:16px; z-index:1055; width:min(420px, 92vw)}
-    /* Leaflet marker numbers */
     .num-ico div{
       width:28px; height:28px; border-radius:50%;
       color:#fff; display:flex; align-items:center; justify-content:center;
       border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.25);
       font-weight:600; font-size:.8rem
     }
-    /* Custom depot and stop icons */
     .depot-icon, .stop-icon {
-      width: 32px;
-      height: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 50%;
-      border: 2px solid #fff;
-      box-shadow: 0 2px 6px rgba(0,0,0,.3);
-      font-size: 1.1rem;
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.3); font-size: 1.1rem;
     }
-    .depot-icon {
-      background: #2563eb;
-      color: #fff;
-    }
-    .stop-icon {
-      background: #f59e0b;
-      color: #fff;
-    }
+    .depot-icon { background: #2563eb; color:#fff; }
+    .stop-icon { background: #f59e0b; color:#fff; }
   </style>
 </head>
 <body>
   <!-- Navbar -->
   <nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top">
     <div class="container-lg">
-      <a class="navbar-brand d-flex align-items-center gap-2" href="#">
-        Çoklu Araç Rota Planlama
-      </a>
+      <a class="navbar-brand d-flex align-items-center gap-2" href="#">Çoklu Araç Rota Planlama</a>
       <span class="badge text-bg-light status-badge" id="status">Hazır</span>
     </div>
   </nav>
@@ -82,9 +63,24 @@
             <div class="form-text mt-2">
               Örn: <code>41.015,28.979</code> (İstanbul), <code>39.933,32.859</code> (Ankara)
             </div>
+
+            <div class="row mt-3 g-2">
+              <div class="col">
+                <label class="form-label">Depo Stokları <small class="text-muted">(virgülle)</small></label>
+                <input id="depot_stock" class="form-control" placeholder="100, 80, 120">
+              </div>
+              <div class="col">
+                <label class="form-label">Araç Kapasiteleri <small class="text-muted">(virgülle)</small></label>
+                <input id="vehicle_caps" class="form-control" placeholder="80, 80, 80">
+              </div>
+            </div>
+            <div class="form-text">
+              Depo sayısı ile stok ve kapasite eleman sayısı aynı olmalı.
+            </div>
           </div>
         </div>
       </div>
+
       <!-- Uğraklar -->
       <div class="col-12 col-lg-6">
         <div class="card">
@@ -101,7 +97,11 @@
 39.750,39.500
 38.731,35.479
 36.812,34.642</textarea>
-            <div class="d-flex align-items-center gap-2 mt-3">
+
+            <label class="form-label mt-3">Uğrak Talepleri <small class="text-muted">(satır satır, stops ile aynı sayıda)</small></label>
+            <textarea id="demands" rows="5" class="form-control" placeholder="10&#10;5&#10;12&#10;..."></textarea>
+
+            <div class="d-flex align-items-center gap-2 mt-3 flex-wrap">
               <div>
                 <label for="method" class="form-label mb-0">Çözüm Metodu</label>
                 <select id="method" class="form-select">
@@ -109,11 +109,10 @@
                   <option value="greedy">Greedy</option>
                   <option value="aco">Ant Colony</option>
                   <option value="ortools">OR-Tools (CP-Solver)</option>
-
                 </select>
               </div>
 
-              <div class="col">
+              <div>
                 <label for="improve" class="form-label mb-0">İyileştirme</label>
                 <select id="improve" class="form-select">
                   <option value="">Yok</option>
@@ -132,7 +131,7 @@
               </div>
             </div>
             <div class="form-text mt-2">
-              Not: Rotalar eş zamanlı başlar; süre özeti en uzun rota süresine (makespan) göre gösterilir.
+              Rotalar eş zamanlı başlar. Makespan en uzun rota süresidir.
             </div>
           </div>
         </div>
@@ -205,7 +204,6 @@
           <span class="legend-dot" style="background:#f59e0b"></span> Uğraklar (Ziyaret Noktaları)
         </span>
       `;
-      // Başlangıç markerlarını geri yükle
       showInitialMarkers();
     }
 
@@ -218,6 +216,20 @@
           return [p[0], p[1]];
         });
     }
+    function parseLinesNums(id){
+      const lines = document.getElementById(id).value.split('\n').map(s=>s.trim()).filter(Boolean);
+      if(lines.length === 0) return [];
+      const arr = lines.map(s=>Number(s));
+      if(arr.some(x => !Number.isFinite(x) || x < 0)) throw new Error('Talep satırları 0 veya pozitif sayı olmalı');
+      return arr;
+    }
+    function parseCsvNums(id){
+      const v = document.getElementById(id).value.trim();
+      if(!v) return [];
+      const arr = v.split(',').map(s=>Number(s.trim()));
+      if(arr.some(x => !Number.isFinite(x) || x < 0)) throw new Error('Değerler 0 veya pozitif sayı olmalı');
+      return arr;
+    }
 
     function numIcon(n, colorHex){
       return L.divIcon({
@@ -226,7 +238,6 @@
         iconSize: [28,28], iconAnchor: [14,28], popupAnchor: [0,-24]
       });
     }
-
     function depotIcon(){
       return L.divIcon({
         className: 'depot-icon-wrapper',
@@ -234,7 +245,6 @@
         iconSize: [32,32], iconAnchor: [16,32], popupAnchor: [0,-28]
       });
     }
-
     function stopIcon(){
       return L.divIcon({
         className: 'stop-icon-wrapper',
@@ -266,17 +276,12 @@
 
     // Başlangıç markerlarını göster
     function showInitialMarkers(){
-      // Önceki başlangıç markerlarını temizle
       initialMarkers.forEach(m => map.removeLayer(m));
       initialMarkers = [];
-
       try{
         const depots = parseLines('depots');
         const stops = parseLines('stops');
-
         let bounds = null;
-
-        // Depoları göster
         depots.forEach((depot, i) => {
           const mk = L.marker([depot[0], depot[1]], { icon: depotIcon() })
             .addTo(map)
@@ -285,8 +290,6 @@
           if(!bounds) bounds = L.latLngBounds([depot]);
           else bounds.extend([depot[0], depot[1]]);
         });
-
-        // Uğrakları göster
         stops.forEach((stop, i) => {
           const mk = L.marker([stop[0], stop[1]], { icon: stopIcon() })
             .addTo(map)
@@ -294,11 +297,8 @@
           initialMarkers.push(mk);
           bounds.extend([stop[0], stop[1]]);
         });
-
         if(bounds) map.fitBounds(bounds, { padding: [40,40] });
-
       }catch(e){
-        // Hata varsa sessizce yoksay (kullanıcı henüz doğru girdi girmemiş olabilir)
         console.warn('Başlangıç markerları gösterilemiyor:', e.message);
       }
     }
@@ -311,30 +311,37 @@
     });
 
     btnSolve.addEventListener('click', solve);
-
-    // Textarea değişikliklerini dinle ve haritayı güncelle
     document.getElementById('depots').addEventListener('input', showInitialMarkers);
     document.getElementById('stops').addEventListener('input', showInitialMarkers);
 
     async function solve(){
       setBusy(true);
-      
-      // Başlangıç markerlarını temizle
-      initialMarkers.forEach(m => map.removeLayer(m));
-      initialMarkers = [];
-      
-      // Rota çizgilerini ve markerlarını temizle
+      // temizle
+      initialMarkers.forEach(m => map.removeLayer(m)); initialMarkers = [];
       layers.forEach(l => map.removeLayer(l)); layers = [];
       markers.forEach(m => map.removeLayer(m)); markers = [];
 
-      let depots, stops;
+      let depots, stops, demands, depot_stock, vehicle_caps;
       try{
         depots = parseLines('depots');
         stops  = parseLines('stops');
+        demands = parseLinesNums('demands');
+        depot_stock = parseCsvNums('depot_stock');
+        vehicle_caps = parseCsvNums('vehicle_caps');
+
+        if(demands.length && demands.length !== stops.length){
+          throw new Error('Talep sayısı, uğrak sayısıyla aynı olmalı');
+        }
+        if(depot_stock.length && depot_stock.length !== depots.length){
+          throw new Error('Depo stok sayısı, depo sayısıyla aynı olmalı');
+        }
+        if(vehicle_caps.length && vehicle_caps.length !== depots.length){
+          throw new Error('Araç kapasite sayısı, depo sayısıyla aynı olmalı');
+        }
       }catch(e){
         showAlert('Girdi hatası: ' + e.message, 'danger');
         setBusy(false);
-        showInitialMarkers(); // Hata durumunda başlangıç markerlarını geri getir
+        showInitialMarkers();
         return;
       }
 
@@ -345,7 +352,7 @@
         const res = await fetch('/alns/solve', {
           method: 'POST',
           headers: { 'Content-Type':'application/json' },
-          body: JSON.stringify({ depots, stops, method, improve })
+          body: JSON.stringify({ depots, stops, method, improve, demands, depot_stock, vehicle_caps })
         });
         if(!res.ok){
           const t = await res.text();
@@ -353,14 +360,14 @@
         }
         const data = await res.json();
         if(!data.trips || data.trips.length === 0){
-          showAlert('Rota bulunamadı veya sonuç boş döndü.', 'warning', 5000);
+          showAlert('Rota bulunamadı veya sonuç boş.', 'warning', 5000);
           setBusy(false);
-          showInitialMarkers(); // Sonuç yoksa başlangıç markerlarını geri getir
+          showInitialMarkers();
           return;
         }
 
         const legend = document.getElementById('legend');
-        legend.innerHTML = ''; // Legendı temizle
+        legend.innerHTML = '';
         let bounds = null, totalDur = 0, totalDist = 0;
 
         data.trips.forEach((t, i) => {
@@ -368,12 +375,10 @@
           const trip = t.trip.trips[0];
           totalDur += trip.duration; totalDist += trip.distance;
 
-          // Çizgi
           const line = L.geoJSON(trip.geometry, { color: col, weight: 5, opacity: .9 }).addTo(map);
           layers.push(line);
           bounds = bounds ? bounds.extend(line.getBounds()) : line.getBounds();
 
-          // Markerlar (waypoint sırasına göre; 0 = başlangıç)
           const ordered = t.trip.waypoints
             .slice()
             .sort((a,b) => a.waypoint_index - b.waypoint_index)
@@ -387,7 +392,6 @@
             markers.push(mk);
           });
 
-          // Legend etiketi
           const tag = document.createElement('span');
           tag.className = 'legend-badge';
           tag.innerHTML = `<span class="legend-dot" style="background:${col}"></span> Araç ${i+1}: ${fmtMin(trip.duration)}, ${fmtKm(trip.distance)}`;
@@ -396,7 +400,6 @@
 
         if(bounds) map.fitBounds(bounds, { padding: [16,16] });
 
-        // Makespan bilgisi (en uzun rota)
         const perVehDur = data.trips.map(t => t.trip.trips[0].duration);
         const makespan = Math.max(...perVehDur);
         statusEl.className = 'badge text-bg-success status-badge';
@@ -405,16 +408,13 @@
       }catch(err){
         console.error(err);
         showAlert('Sunucu hatası: ' + err.message, 'danger', 7000);
-        showInitialMarkers(); // Hata durumunda başlangıç markerlarını geri getir
+        showInitialMarkers();
       }finally{
         setBusy(false);
       }
     }
 
-    // Sayfa yüklendiğinde başlangıç markerlarını göster
-    window.addEventListener('load', () => {
-      showInitialMarkers();
-    });
+    window.addEventListener('load', () => { showInitialMarkers(); });
   </script>
 </body>
 </html>
